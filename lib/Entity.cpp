@@ -1,4 +1,5 @@
 #include "Entity.h"
+#include "raymath.h" // Needed for Vector2Normalize, Vector2Length
 
 Entity::Entity() : mPosition {0.0f, 0.0f}, mMovement {0.0f, 0.0f}, 
                    mVelocity {0.0f, 0.0f}, mAcceleration {0.0f, 0.0f},
@@ -31,36 +32,33 @@ Entity::Entity(Vector2 position, Vector2 scale, const char *textureFilepath,
 
 Entity::~Entity() { UnloadTexture(mTexture); };
 
+// ----------------------------------------------------------------
+// COLLISION LOGIC (UPDATED FOR TOP-DOWN)
+// ----------------------------------------------------------------
+
 void Entity::checkCollisionY(Entity *collidableEntities, int collisionCheckCount)
 {
     for (int i = 0; i < collisionCheckCount; i++)
     {
-        // STEP 1: For every entity that our player can collide with...
         Entity *collidableEntity = &collidableEntities[i];
         
         if (isColliding(collidableEntity))
         {
-            // STEP 2: Calculate the distance between its centre and our centre
-            //         and use that to calculate the amount of overlap between
-            //         both bodies.
             float yDistance = fabs(mPosition.y - collidableEntity->mPosition.y);
             float yOverlap  = fabs(yDistance - (mColliderDimensions.y / 2.0f) - 
                               (collidableEntity->mColliderDimensions.y / 2.0f));
             
-            // STEP 3: "Unclip" ourselves from the other entity, and zero our
-            //         vertical velocity.
-            if (mVelocity.y > 0) 
+            if (mVelocity.y > 0) // Moving Down (South)
             {
                 mPosition.y -= yOverlap;
                 mVelocity.y  = 0;
-            } else if (mVelocity.y < 0) 
+                mIsCollidingBottom = true; 
+            } 
+            else if (mVelocity.y < 0) // Moving Up (North)
             {
                 mPosition.y += yOverlap;
                 mVelocity.y  = 0;
                 mIsCollidingTop = true;
-
-                if (collidableEntity->mEntityType == BLOCK)
-                    collidableEntity->deactivate();
             }
         }
     }
@@ -74,31 +72,20 @@ void Entity::checkCollisionX(Entity *collidableEntities, int collisionCheckCount
         
         if (isColliding(collidableEntity))
         {            
-            // When standing on a platform, we're always slightly overlapping
-            // it vertically due to gravity, which causes false horizontal
-            // collision detections. So the solution I found is only resolve X
-            // collisions if there's significant Y overlap, preventing the 
-            // platform we're standing on from acting like a wall.
-            float yDistance = fabs(mPosition.y - collidableEntity->mPosition.y);
-            float yOverlap  = fabs(yDistance - (mColliderDimensions.y / 2.0f) - (collidableEntity->mColliderDimensions.y / 2.0f));
-
-            // Skip if barely touching vertically (standing on platform)
-            if (yOverlap < Y_COLLISION_THRESHOLD) continue;
-
             float xDistance = fabs(mPosition.x - collidableEntity->mPosition.x);
-            float xOverlap  = fabs(xDistance - (mColliderDimensions.x / 2.0f) - (collidableEntity->mColliderDimensions.x / 2.0f));
+            float xOverlap  = fabs(xDistance - (mColliderDimensions.x / 2.0f) - 
+                              (collidableEntity->mColliderDimensions.x / 2.0f));
 
-            if (mVelocity.x > 0) {
+            if (mVelocity.x > 0) // Moving Right
+            {
                 mPosition.x     -= xOverlap;
                 mVelocity.x      = 0;
-
-                // Collision!
                 mIsCollidingRight = true;
-            } else if (mVelocity.x < 0) {
+            } 
+            else if (mVelocity.x < 0) // Moving Left
+            {
                 mPosition.x    += xOverlap;
                 mVelocity.x     = 0;
- 
-                // Collision!
                 mIsCollidingLeft = true;
             }
         }
@@ -120,24 +107,26 @@ void Entity::checkCollisionY(Map *map)
     float xOverlap = 0.0f;
     float yOverlap = 0.0f;
 
-    // COLLISION ABOVE (jumping upward)
-    if ((map->isSolidTileAt(topCentreProbe, &xOverlap, &yOverlap) ||
+    // COLLISION NORTH (Moving Up)
+    if (mVelocity.y < 0.0f &&
+        (map->isSolidTileAt(topCentreProbe, &xOverlap, &yOverlap) ||
          map->isSolidTileAt(topLeftProbe, &xOverlap, &yOverlap)   ||
-         map->isSolidTileAt(topRightProbe, &xOverlap, &yOverlap)) && mVelocity.y < 0.0f)
+         map->isSolidTileAt(topRightProbe, &xOverlap, &yOverlap)))
     {
-        mPosition.y += yOverlap;   // push down
+        mPosition.y += yOverlap; 
         mVelocity.y  = 0.0f;
         mIsCollidingTop = true;
     }
 
-    // COLLISION BELOW (falling downward)
-    if ((map->isSolidTileAt(bottomCentreProbe, &xOverlap, &yOverlap) ||
+    // COLLISION SOUTH (Moving Down)
+    if (mVelocity.y > 0.0f && 
+        (map->isSolidTileAt(bottomCentreProbe, &xOverlap, &yOverlap) ||
          map->isSolidTileAt(bottomLeftProbe, &xOverlap, &yOverlap)   ||
-         map->isSolidTileAt(bottomRightProbe, &xOverlap, &yOverlap)) && mVelocity.y > 0.0f)
+         map->isSolidTileAt(bottomRightProbe, &xOverlap, &yOverlap)))
     {
         mPosition.y -= yOverlap; 
         mVelocity.y  = 0.0f;
-        // mIsCollidingBottom = true;
+        mIsCollidingBottom = true;
     } 
 }
 
@@ -146,26 +135,25 @@ void Entity::checkCollisionX(Map *map)
     if (map == nullptr) return;
 
     Vector2 leftCentreProbe   = { mPosition.x - (mColliderDimensions.x / 2.0f), mPosition.y };
-
     Vector2 rightCentreProbe  = { mPosition.x + (mColliderDimensions.x / 2.0f), mPosition.y };
 
     float xOverlap = 0.0f;
     float yOverlap = 0.0f;
 
-    // COLLISION ON RIGHT (moving right)
-    if (map->isSolidTileAt(rightCentreProbe, &xOverlap, &yOverlap) 
-         && mVelocity.x > 0.0f && yOverlap >= 0.5f)
+    // COLLISION RIGHT
+    if (mVelocity.x > 0.0f && 
+        map->isSolidTileAt(rightCentreProbe, &xOverlap, &yOverlap))
     {
-        mPosition.x -= xOverlap * 1.01f;   // push left
+        mPosition.x -= xOverlap;
         mVelocity.x  = 0.0f;
         mIsCollidingRight = true;
     }
 
-    // COLLISION ON LEFT (moving left)
-    if (map->isSolidTileAt(leftCentreProbe, &xOverlap, &yOverlap) 
-         && mVelocity.x < 0.0f && yOverlap >= 0.5f)
+    // COLLISION LEFT
+    if (mVelocity.x < 0.0f && 
+        map->isSolidTileAt(leftCentreProbe, &xOverlap, &yOverlap))
     {
-        mPosition.x += xOverlap * 1.01;   // push right
+        mPosition.x += xOverlap;
         mVelocity.x  = 0.0f;
         mIsCollidingLeft = true;
     }
@@ -185,6 +173,10 @@ bool Entity::isColliding(Entity *other) const
     return false;
 }
 
+// ----------------------------------------------------------------
+// AI & UPDATE LOGIC
+// ----------------------------------------------------------------
+
 void Entity::animate(float deltaTime)
 {
     mAnimationIndices = mAnimationAtlas.at(mDirection);
@@ -195,7 +187,6 @@ void Entity::animate(float deltaTime)
     if (mAnimationTime >= framesPerSecond)
     {
         mAnimationTime = 0.0f;
-
         mCurrentFrameIndex++;
         mCurrentFrameIndex %= mAnimationIndices.size();
     }
@@ -203,35 +194,48 @@ void Entity::animate(float deltaTime)
 
 void Entity::AIWander() 
 { 
-    // If we hit a wall on the left, move right
-    if (mDirection == LEFT && (mIsCollidingLeft || mIsCollidingBottom == false)) {
-        moveRight();
-    }
-    // If we hit a wall on the right, move left
-    else if (mDirection == RIGHT && (mIsCollidingRight || mIsCollidingBottom == false)) {
-        moveLeft();
-    }
+    // Top-Down Bounce Logic
+    // If we hit a wall, reverse direction on that axis
+    if (mIsCollidingLeft)  { moveRight(); }
+    if (mIsCollidingRight) { moveLeft();  }
+    if (mIsCollidingTop)   { moveDown();  }
+    if (mIsCollidingBottom){ moveUp();    }
     
-    // If we have no movement (e.g., at spawn), default to moving left
+    // Safety: If stuck or initializing
     if (GetLength(mMovement) == 0.0f) {
-        moveLeft();
+        moveRight();
     }
 }
 
 void Entity::AIFollow(Entity *target)
 {
+    // Basic 2D Follow logic
+    Vector2 targetPos = target->getPosition();
+    Vector2 diff = Vector2Subtract(targetPos, mPosition);
+    float dist = Vector2Length(diff);
+
     switch (mAIState)
     {
     case IDLE:
-        if (Vector2Distance(mPosition, target->getPosition()) < 250.0f) 
-            mAIState = WALKING;
+        if (dist < 300.0f) mAIState = WALKING;
         break;
 
     case WALKING:
-        // Depending on where the player is in respect to their x-position
-        // Change direction of the enemy
-        if (mPosition.x > target->getPosition().x) moveLeft();
-        else                                       moveRight();
+        if (dist < 30.0f) {
+            mMovement = {0.0f, 0.0f}; // Stop if close enough
+            return;
+        }
+
+        // Normalize direction
+        mMovement = Vector2Normalize(diff);
+
+        // Update Direction Enum for animation
+        if (fabs(mMovement.x) > fabs(mMovement.y)) {
+            mDirection = (mMovement.x < 0) ? LEFT : RIGHT;
+        } else {
+            mDirection = (mMovement.y < 0) ? UP : DOWN;
+        }
+        break;
     
     default:
         break;
@@ -250,8 +254,8 @@ void Entity::AIActivate(Entity *target)
         AIFollow(target);
         break;
     
-    case FLYER:     // Added this case
-        AIWander(); // Flyers will also patrol
+    case FLYER:     
+        AIWander(); 
         break;
     
     default:
@@ -268,21 +272,39 @@ void Entity::update(float deltaTime, Entity *player, Map *map,
 
     resetColliderFlags();
 
-    // Drive velocity from explicit movement input for both axes
+    // 1. NORMALIZE MOVEMENT (Prevent fast diagonal movement)
+    if (Vector2Length(mMovement) > 0) {
+        mMovement = Vector2Normalize(mMovement);
+    }
+
+    // 2. UPDATE VELOCITY (No Gravity)
+    // We can still add Acceleration here if we want "slippery" movement,
+    // otherwise, we just set velocity directly from movement * speed.
     mVelocity.x = mMovement.x * mSpeed;
-    mVelocity.x += mAcceleration.x * deltaTime;
-
     mVelocity.y = mMovement.y * mSpeed;
-    mVelocity.y += mAcceleration.y * deltaTime;
-    mPosition.y += mVelocity.y * deltaTime;
-    checkCollisionY(collidableEntities, collisionCheckCount);
-    checkCollisionY(map);
 
+    // 3. APPLY X MOVEMENT & COLLISION
     mPosition.x += mVelocity.x * deltaTime;
     checkCollisionX(collidableEntities, collisionCheckCount);
     checkCollisionX(map);
 
-    if (mTextureType == ATLAS && GetLength(mMovement) != 0 && mIsCollidingBottom) 
+    // 4. APPLY Y MOVEMENT & COLLISION
+    mPosition.y += mVelocity.y * deltaTime;
+    checkCollisionY(collidableEntities, collisionCheckCount);
+    checkCollisionY(map);
+
+    // 5. UPDATE FOLLOWER HISTORY (Breadcrumbs)
+    // Only record if we actually moved this frame
+    if (Vector2Length(mVelocity) > 0.0f) {
+        mPositionHistory.push_front(mPosition);
+        // Keep history manageable (e.g., 200 points)
+        if (mPositionHistory.size() > 200) {
+            mPositionHistory.pop_back();
+        }
+    }
+
+    // 6. ANIMATE
+    if (mTextureType == ATLAS && Vector2Length(mMovement) != 0) 
         animate(deltaTime);
 }
 
@@ -295,12 +317,8 @@ void Entity::render()
     switch (mTextureType)
     {
         case SINGLE:
-            // Whole texture (UV coordinates)
             textureArea = {
-                // top-left corner
                 0.0f, 0.0f,
-
-                // bottom-right corner (of texture)
                 static_cast<float>(mTexture.width),
                 static_cast<float>(mTexture.height)
             };
@@ -316,7 +334,6 @@ void Entity::render()
         default: break;
     }
 
-    // Destination rectangle – centred on gPosition
     Rectangle destinationArea = {
         mPosition.x,
         mPosition.y,
@@ -324,25 +341,20 @@ void Entity::render()
         static_cast<float>(mScale.y)
     };
 
-    // Origin inside the source texture (centre of the texture)
     Vector2 originOffset = {
         static_cast<float>(mScale.x) / 2.0f,
         static_cast<float>(mScale.y) / 2.0f
     };
 
-    // Render the texture on screen
     DrawTexturePro(
         mTexture, 
         textureArea, destinationArea, originOffset,
         mAngle, WHITE
     );
-
-    // displayCollider();
 }
 
 void Entity::displayCollider() 
 {
-    // draw the collision box
     Rectangle colliderBox = {
         mPosition.x - mColliderDimensions.x / 2.0f,  
         mPosition.y - mColliderDimensions.y / 2.0f,  
@@ -351,10 +363,20 @@ void Entity::displayCollider()
     };
 
     DrawRectangleLines(
-        colliderBox.x,      // Top-left X
-        colliderBox.y,      // Top-left Y
-        colliderBox.width,  // Width
-        colliderBox.height, // Height
-        GREEN               // Color
+        colliderBox.x,      
+        colliderBox.y,      
+        colliderBox.width,  
+        colliderBox.height, 
+        GREEN               
     );
 }
+
+Vector2 Entity::getDirectionVector() const
+{
+    if (mDirection == LEFT)  return { -1.0f, 0.0f };
+    if (mDirection == RIGHT) return { 1.0f, 0.0f };
+    if (mDirection == UP)    return { 0.0f, -1.0f };
+    if (mDirection == DOWN)  return { 0.0f, 1.0f };
+    return { 0.0f, 0.0f };
+}
+
