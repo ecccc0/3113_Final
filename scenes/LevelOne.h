@@ -17,6 +17,8 @@ private:
     // Level-specific enemy defeat flags cached locally for convenience
     // (Mirror of global gSceneEnemyDefeated[sceneIndex])
     std::vector<bool> mEnemyDefeated;
+    // Party follower entities (Skull, Mona, Noir)
+    std::vector<Entity*> mFollowers;
 };
 
 #endif

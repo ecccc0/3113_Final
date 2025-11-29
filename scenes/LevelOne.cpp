@@ -30,6 +30,13 @@ void LevelOne::initialise()
         delete[] mGameState.worldEnemies;
         mGameState.worldEnemies = nullptr;
     }
+    // Clean previous followers if re-entering
+    if (!mFollowers.empty()) {
+        for (Entity* f : mFollowers) {
+            delete f;
+        }
+        mFollowers.clear();
+    }
 
     // 1. LOAD MAP (only allocate once; recreate each initialise for simplicity)
     if (mGameState.map) {
@@ -50,6 +57,22 @@ void LevelOne::initialise()
         PLAYER
     );
     mGameState.player->setAcceleration({ 0.0f, 0.0f });
+
+    // 2b. CREATE PARTY FOLLOWERS (Skull, Mona, Noir)
+    // Spawn behind player with slight offsets
+    Vector2 playerPos = mGameState.player->getPosition();
+    const float spacing = 40.0f;
+    Entity* skull = new Entity({ playerPos.x - spacing, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_skull.png", NPC);
+    Entity* mona  = new Entity({ playerPos.x - spacing * 2.0f, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_mona.png", NPC);
+    Entity* noir  = new Entity({ playerPos.x - spacing * 3.0f, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_noir.png", NPC);
+
+    skull->setAIType(FOLLOWER); skull->setAIState(IDLE); skull->activate(); skull->setAcceleration({0.0f,0.0f});
+    mona->setAIType(FOLLOWER);  mona->setAIState(IDLE);  mona->activate();  mona->setAcceleration({0.0f,0.0f});
+    noir->setAIType(FOLLOWER);  noir->setAIState(IDLE);  noir->activate();  noir->setAcceleration({0.0f,0.0f});
+
+    mFollowers.push_back(skull);
+    mFollowers.push_back(mona);
+    mFollowers.push_back(noir);
 
     // For prototype we have 1 enemy; ensure global defeated flags sized
     if (gCurrentLevelIndex >= 0) {
@@ -94,6 +117,18 @@ void LevelOne::update(float deltaTime)
     // but here we handle the trigger manually below.
     mGameState.player->update(deltaTime, mGameState.player, mGameState.map, NULL, 0);
     
+    // 1b. Update Followers (follow player)
+    // Physics parameters (tweak as desired)
+    constexpr float TETHER_SPEED    = 0.08f;    // Spring stiffness (raised for responsiveness)
+    constexpr float REPEL_STRENGTH  = 20000.0f; // Separation force magnitude (increased)
+    constexpr float JITTER_STRENGTH = 5.0f;    // Idle jitter magnitude
+    constexpr float DAMPING         = 0.90f;   // Velocity damping (slightly lighter to keep motion)
+    for (Entity* f : mFollowers) {
+        if (!f) continue;
+        f->updateFollowerPhysics(mGameState.player, mFollowers, mGameState.map, deltaTime,
+            TETHER_SPEED, REPEL_STRENGTH, JITTER_STRENGTH, DAMPING);
+    }
+    
     // 2. Update Enemies
     for (int i = 0; i < mGameState.enemyCount; i++)
     {
@@ -126,6 +161,11 @@ void LevelOne::render()
     for (int i = 0; i < mGameState.enemyCount; i++)
     {
         mGameState.worldEnemies[i].render();
+    }
+
+    // Draw Followers
+    for (Entity* f : mFollowers) {
+        if (f) f->render();
     }
 
     // Draw Player

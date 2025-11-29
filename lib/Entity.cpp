@@ -293,11 +293,12 @@ void Entity::update(float deltaTime, Entity *player, Map *map,
     checkCollisionY(collidableEntities, collisionCheckCount);
     checkCollisionY(map);
 
-    // 5. UPDATE FOLLOWER HISTORY (Breadcrumbs)
-    // Only record if we actually moved this frame
-    if (Vector2Length(mVelocity) > 0.0f) {
+    // 5. UPDATE POSITION HISTORY (Breadcrumbs)
+    // Always record for Player to ensure consistent breadcrumb trail;
+    // for other entities, only when they moved.
+    if (mEntityType == PLAYER || Vector2Length(mVelocity) > 0.0f) {
         mPositionHistory.push_front(mPosition);
-        // Keep history manageable (e.g., 200 points)
+        // Maintain manageable buffer size (200 is sufficient; need >=6 for follower logic).
         if (mPositionHistory.size() > 200) {
             mPositionHistory.pop_back();
         }
@@ -378,5 +379,98 @@ Vector2 Entity::getDirectionVector() const
     if (mDirection == UP)    return { 0.0f, -1.0f };
     if (mDirection == DOWN)  return { 0.0f, 1.0f };
     return { 0.0f, 0.0f };
+}
+
+// ----------------------------------------------------------------
+// FOLLOWER PHYSICS (Elastic Tether + Personal Space + Jitter + Integration)
+// ----------------------------------------------------------------
+void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& followers,
+    Map* map, float deltaTime, float tetherSpeed, float repelStrength,
+    float jitterStrength, float damping)
+{
+    if (mEntityType != NPC || mAIType != FOLLOWER || leader == nullptr) return;
+
+    Vector2 currentPos = mPosition;
+
+    // A. TETHER FORCE (Attraction to past leader position for smoother path)
+    Vector2 targetPos;
+    auto& history = leader->getPositionHistory();
+    if (history.size() > 5) targetPos = history[5];
+    else targetPos = leader->getPosition();
+    Vector2 tether = Vector2Scale(Vector2Subtract(targetPos, currentPos), tetherSpeed);
+
+    // B. SEPARATION FORCE (Inverse-square repulsion)
+    Vector2 separation = {0.0f, 0.0f};
+    auto accumulateRepel = [&](Entity* neighbor){
+        if (!neighbor || neighbor == this) return;
+        float dist = Vector2Distance(currentPos, neighbor->getPosition());
+        if (dist < 30.0f) {
+            if (dist < 1.0f) dist = 1.0f; // Clamp
+            Vector2 pushDir = Vector2Subtract(currentPos, neighbor->getPosition());
+            if (Vector2Length(pushDir) > 0.0f) pushDir = Vector2Normalize(pushDir);
+            float scale = repelStrength / (dist * dist);
+            separation = Vector2Add(separation, Vector2Scale(pushDir, scale));
+        }
+    };
+    accumulateRepel(leader);
+    for (Entity* f : followers) accumulateRepel(f);
+
+    // C. IDLE JITTER (Ambient life)
+    Vector2 jitter = {0.0f, 0.0f};
+    if (Vector2Length(mVelocity) < 5.0f) {
+        float time = GetTime();
+        float entityID = static_cast<float>((reinterpret_cast<uintptr_t>(this) & 0xFFF));
+        Vector2 noise = { sinf(time + entityID), cosf(time + entityID) };
+        jitter = Vector2Scale(noise, jitterStrength);
+    }
+
+    // D. INTEGRATE FORCES -> ACCELERATION
+    Vector2 acceleration = tether;
+    acceleration = Vector2Add(acceleration, Vector2Scale(separation, 2.0f)); // Separation weighted
+    acceleration = Vector2Add(acceleration, jitter);
+
+    // Apply to velocity (note: remove extra deltaTime factor to avoid tiny movement)
+    mVelocity = Vector2Add(mVelocity, acceleration);
+    // Clamp max velocity to avoid jitter explosions
+    const float MAX_FOLLOWER_SPEED = 250.0f; // pixels/second (similar to DEFAULT_SPEED)
+    float velMag = Vector2Length(mVelocity);
+    if (velMag > MAX_FOLLOWER_SPEED) {
+        mVelocity = Vector2Scale(Vector2Normalize(mVelocity), MAX_FOLLOWER_SPEED);
+    }
+    // Apply damping (frictional decay)
+    mVelocity = Vector2Scale(mVelocity, damping);
+
+    // Collision preparation
+    resetColliderFlags();
+
+    // Move X then collide
+    mPosition.x += mVelocity.x * deltaTime;
+    checkCollisionX(map);
+    // Move Y then collide
+    mPosition.y += mVelocity.y * deltaTime;
+    checkCollisionY(map);
+
+    // Record breadcrumb if moved (maintain history for next followers)
+    if (Vector2Length(mVelocity) > 0.0f) {
+        mPositionHistory.push_front(mPosition);
+        if (mPositionHistory.size() > 200) mPositionHistory.pop_back();
+    }
+
+    // Derive movement vector for animation/direction (not used for speed calc now)
+    if (Vector2Length(mVelocity) > 0.0f) {
+        mMovement = Vector2Normalize(mVelocity);
+        if (fabs(mVelocity.x) > fabs(mVelocity.y)) {
+            mDirection = (mVelocity.x < 0) ? LEFT : RIGHT;
+        } else {
+            mDirection = (mVelocity.y < 0) ? UP : DOWN;
+        }
+    } else {
+        mMovement = {0.0f, 0.0f};
+    }
+
+    // Animation (if atlas)
+    if (mTextureType == ATLAS && Vector2Length(mVelocity) > 1.0f) {
+        animate(deltaTime);
+    }
 }
 

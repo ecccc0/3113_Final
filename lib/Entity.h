@@ -154,6 +154,11 @@ public:
     }
     void setAIState(AIState newState)           { mAIState = newState;                     }
     void setAIType(AIType newType)              { mAIType = newType;                       }
+
+    // Advanced follower physics (tether + separation + jitter + integration)
+    void updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& followers,
+        Map* map, float deltaTime, float tetherSpeed, float repelStrength,
+        float jitterStrength, float damping);
 };
 
 #endif // ENTITY_H
