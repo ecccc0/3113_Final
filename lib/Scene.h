@@ -4,38 +4,7 @@
 #include <vector>
 #include <string>
 #include "Entity.h" 
-
-// The Core Persona Elements
-enum Element { PHYS, GUN, FIRE, ICE, ELEC, WIND, PSI, NUKE, BLESS, CURSE, ELEMENT_NONE };
-
-struct Ability {
-    std::string name;
-    int cost;        // HP for Phys, SP for Magic
-    int damage;
-    Element element;
-    bool isMagic;    // True = costs SP, False = costs HP
-};
-
-struct Combatant {
-    std::string name;
-    
-    // Stats
-    int currentHp, maxHp;
-    int currentSp, maxSp;
-    int attack;
-    int defense;
-    int speed;
-    std::string texturePath;
-    
-    // Mechanics
-    std::vector<Ability> skills;
-    std::vector<Element> weaknesses; // What knocks this unit down?
-    
-    // Battle State
-    bool isAlive = true;
-    bool isDown = false;      // The critical "Hold Up" condition
-    bool hasActed = false;    // To track round completion
-};
+#include "GameTypes.h" // Use shared Element, Ability, Combatant
 
 
 struct GameState

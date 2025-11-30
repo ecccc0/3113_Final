@@ -7,7 +7,11 @@ Map::Map(int mapColumns, int mapRows, unsigned int *levelData,
          mTextureAtlas { LoadTexture(textureFilePath) },
          mLevelData {levelData }, mTileSize {tileSize}, 
          mTextureColumns {textureColumns}, mTextureRows {textureRows},
-         mOrigin {origin} { build(); }
+         mOrigin {origin} {
+    // Initialize exploration state for all tiles to false
+    mTileExplored.resize(mMapColumns * mMapRows, false);
+    build();
+}
 
 Map::~Map() { UnloadTexture(mTextureAtlas); }
 
@@ -32,6 +36,51 @@ void Map::build()
             };
 
             mTextureAreas.push_back(textureArea);
+        }
+    }
+}
+
+int Map::getTileIndex(int x, int y)
+{
+    return y * mMapColumns + x;
+}
+
+Vector2 Map::worldToTile(Vector2 pos)
+{
+    // Convert world position to tile indices via tile size
+    return { (float)((int)(pos.x / mTileSize)), (float)((int)(pos.y / mTileSize)) };
+}
+
+void Map::revealTiles(Vector2 playerPos, float radius)
+{
+    // Convert player world position to tile coordinates
+    Vector2 centerTile = worldToTile({ playerPos.x - mLeftBoundary, playerPos.y - mTopBoundary });
+    int centerX = (int)centerTile.x;
+    int centerY = (int)centerTile.y;
+
+    // Convert radius in world units to tile units
+    float tileRadiusF = radius / mTileSize;
+    int   tileRadius  = (int)ceilf(tileRadiusF);
+
+    // Bounds for square iteration
+    int startX = std::max(0, centerX - tileRadius);
+    int endX   = std::min(mMapColumns - 1, centerX + tileRadius);
+    int startY = std::max(0, centerY - tileRadius);
+    int endY   = std::min(mMapRows - 1, centerY + tileRadius);
+
+    for (int y = startY; y <= endY; ++y)
+    {
+        for (int x = startX; x <= endX; ++x)
+        {
+            float dx = (float)(x - centerX);
+            float dy = (float)(y - centerY);
+            float dist = sqrtf(dx*dx + dy*dy);
+            if (dist <= tileRadiusF)
+            {
+                int idx = getTileIndex(x, y);
+                if (idx >= 0 && idx < (int)mTileExplored.size())
+                    mTileExplored[idx] = true;
+            }
         }
     }
 }
@@ -66,6 +115,13 @@ void Map::render()
                 0.0f,         // rotation
                 WHITE         // tint
             );
+
+            // Fog overlay pass: draw dark mask over unexplored tiles
+            int idx = getTileIndex(col, row);
+            if (idx >= 0 && idx < (int)mTileExplored.size() && !mTileExplored[idx])
+            {
+                DrawRectangleRec(destinationArea, Fade(BLACK, 0.9f));
+            }
         }
     }
 }

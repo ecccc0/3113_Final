@@ -25,6 +25,9 @@ private:
     float mTopBoundary;   // top boundary of the map in world coordinates
     float mBottomBoundary;// bottom boundary of the map in world coordinates
 
+    // Tracks which tiles have been explored/seen by the player
+    std::vector<bool> mTileExplored;
+
 public:
     Map(int mapColumns, int mapRows, unsigned int *levelData,
         const char *textureFilePath, float tileSize, int textureColumns,
@@ -34,6 +37,13 @@ public:
     void build();
     void render();
     bool isSolidTileAt(Vector2 position, float *xOverlap, float *yOverlap);
+
+    // Helpers for coordinate conversion and indexing
+    int getTileIndex(int x, int y);
+    Vector2 worldToTile(Vector2 pos);
+
+    // Reveal tiles around player within radius
+    void revealTiles(Vector2 playerPos, float radius);
 
     int           getMapColumns()     const { return mMapColumns;     };
     int           getMapRows()        const { return mMapRows;        };

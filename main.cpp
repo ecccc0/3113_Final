@@ -1,26 +1,26 @@
 #include "lib/cs3113.h"
+#include "lib/GameTypes.h"
+#include "lib/GameData.h"
 #include "scenes/LevelOne.h"
 #include "scenes/CombatScene.h"
-constexpr int SCREEN_WIDTH     = 1000,
-              SCREEN_HEIGHT    = 600,
-              FPS              = 120;
 
-constexpr Vector2 ORIGIN      = { SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 };
-enum GameStatus   { EXPLORATION, COMBAT, PAUSED, GAME_OVER };
+// --- GLOBALS ---
+constexpr int SCREEN_WIDTH  = 1000;
+constexpr int SCREEN_HEIGHT = 600;
+constexpr int TARGET_FPS    = 60;
 
 GameStatus gGameStatus = EXPLORATION;
-
 AppStatus gAppStatus   = RUNNING;
 
 float gPreviousTicks   = 0.0f;
-
 int gCurrentLevelIndex = -1;
-Scene *gCurrentScene = nullptr;
-std::vector<Scene*> gLevels = {};
-std::vector<Combatant> gParty = {};
 
-// Persistent defeated enemy tracking per scene (sceneIndex -> vector of enemy flags)
-std::vector<std::vector<bool>> gSceneEnemyDefeated; // sized after scenes are created
+Scene *gCurrentScene = nullptr;
+std::vector<Scene*> gLevels;
+std::vector<Combatant> gParty; // Defined here, populated from GameData
+
+// Global Tracking
+std::vector<std::vector<bool>> gSceneEnemyDefeated; 
 
 
 void switchToScene(int sceneIndex);
@@ -45,69 +45,17 @@ void switchToScene(int sceneIndex)
 
 void initialise() 
 {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CS3113 Final Project");
-    SetTargetFPS(FPS);
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Persona 5 Demake");
+    SetTargetFPS(TARGET_FPS);
 
-    gParty.clear(); 
+    // Load Initial Party from Data Header
+    gParty = INITIAL_PARTY(); 
+    
+    // Initialize Audio (Requirement 6) [cite: 45]
+    InitAudioDevice();
 
-    // --- JOKER (Balanced / Curse / Gun) ---
-    Combatant joker;
-    joker.name = "Joker";
-    joker.texturePath = "assets/player_joker.png";
-    joker.maxHp = 100; joker.currentHp = 100;
-    joker.maxSp = 50;  joker.currentSp = 50;
-    joker.attack = 15; joker.defense = 10; joker.speed = 12;
-    joker.isAlive = true;
-    joker.skills = {
-        {"Eiha", 4, 30, CURSE},
-        {"Gun",  2, 20, GUN}
-    };
-    gParty.push_back(joker);
-
-    // --- SKULL (Physical Tank / Electric) ---
-    Combatant skull;
-    skull.name = "Skull";
-    skull.texturePath = "assets/player_skull.png";
-    skull.maxHp = 150; skull.currentHp = 150;
-    skull.maxSp = 30;  skull.currentSp = 30;
-    skull.attack = 20; skull.defense = 15; skull.speed = 8;
-    skull.isAlive = true;
-    skull.skills = {
-        {"Lunge", 0, 25, PHYS},
-        {"Zio",   4, 25, ELEC}
-    };
-    gParty.push_back(skull);
-
-    // --- MONA (Healer / Wind) ---
-    Combatant mona;
-    mona.name = "Mona";
-    mona.texturePath = "assets/player_mona.png";
-    mona.maxHp = 80;  mona.currentHp = 80;
-    mona.maxSp = 60;  mona.currentSp = 60;
-    mona.attack = 12; mona.defense = 8; mona.speed = 15;
-    mona.isAlive = true;
-    mona.skills = {
-        {"Garu", 4, 20, WIND},
-        {"Dia",  4, -30, ELEMENT_NONE} // Negative damage = Healing
-    };
-    gParty.push_back(mona);
-
-    // --- NOIR (Burst Damage / Psi) ---
-    Combatant noir;
-    noir.name = "Noir";
-    noir.texturePath = "assets/player_noir.png";
-    noir.maxHp = 110; noir.currentHp = 110;
-    noir.maxSp = 45;  noir.currentSp = 45;
-    noir.attack = 18; noir.defense = 12; noir.speed = 10;
-    noir.isAlive = true;
-    noir.skills = {
-        {"Psi",       4, 35, PSI},
-        {"Mapsi",     8, 25, PSI} 
-    };
-    gParty.push_back(noir);
-
-
-
+    // Reset global enemy defeat tracking at app start (new session)
+    gSceneEnemyDefeated.clear();
 }
 
 void processInput() 
@@ -195,6 +143,8 @@ void render()
 
             yPos += 30; // Spacing for next member
         }
+
+        // (Removed debug HUD for enemies)
     }
     // 2. STATIC SCENES: Menu, Combat, Game Over
     else 
@@ -208,66 +158,46 @@ void render()
 
 int main()
 {
-    // Initialise systems and global party
     initialise();
 
-    // Populate scenes (indexing chosen so LevelOne=0, CombatScene=2 as expected)
-    gLevels.push_back(new LevelOne(ORIGIN, "#000000")); // 0
-    gLevels.push_back(nullptr);                          // 1 placeholder
-    gLevels.push_back(new CombatScene(ORIGIN, "#000000")); // 2
-    // Size defeated flags vector to number of scenes
+    // Scene Setup
+    gLevels.push_back(new LevelOne({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
+    gLevels.push_back(nullptr); // Placeholder
+    gLevels.push_back(new CombatScene({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
+    
     gSceneEnemyDefeated.resize(gLevels.size());
 
     switchToScene(0);
 
-    // Main loop
     while (gAppStatus != TERMINATED) {
         processInput();
         update();
 
-        // Scene transition handling: if the active scene set a nextSceneID,
-        // safely switch to that scene and copy party data for combat.
-        if (gCurrentScene) {
-            int nextScene = gCurrentScene->getState().nextSceneID;
-            if (nextScene != -1) {
-                std::cout << "[main] Detected nextSceneID = " << nextScene << " from current scene " << gCurrentLevelIndex << std::endl;
-                // Clear the request on the previous scene
-                gCurrentScene->getState().nextSceneID = -1;
+        // Scene Switching Logic (Keep existing logic)
+        if (gCurrentScene->getState().nextSceneID != -1) {
+             int nextID = gCurrentScene->getState().nextSceneID;
+             
+             // Pass Party State to Combat
+             if (nextID == 2) { 
+                 gLevels[nextID]->getState().party = gParty;
+                 gLevels[nextID]->getState().returnSceneID = gCurrentLevelIndex;
+                 gLevels[nextID]->getState().engagedEnemyIndex = gCurrentScene->getState().engagedEnemyIndex;
+             }
+             
+             // Return from Combat: Update Global Party
+             if (gCurrentLevelIndex == 2 && nextID != 2) {
+                 gParty = gCurrentScene->getState().party;
+             }
 
-                // Validate and perform the transition
-                if (nextScene >= 0 && nextScene < (int)gLevels.size() && gLevels[nextScene] != nullptr) {
-                    Scene* target = gLevels[nextScene];
-
-                    // If target is combat, seed it with the current global party
-                    if (nextScene == 2) {
-                        std::cout << "[main] Copying global party (size=" << gParty.size() << ") into CombatScene before initialise." << std::endl;
-                        target->getState().party = gParty;
-                        // Pass return scene and engaged enemy index from current scene's GameState
-                        target->getState().returnSceneID = gCurrentScene->getState().returnSceneID >= 0 ? gCurrentScene->getState().returnSceneID : gCurrentLevelIndex;
-                        target->getState().engagedEnemyIndex = gCurrentScene->getState().engagedEnemyIndex;
-                        std::cout << "[main] CombatScene returnSceneID=" << target->getState().returnSceneID << " engagedEnemyIndex=" << target->getState().engagedEnemyIndex << std::endl;
-                    }
-
-                    // Shutdown current scene then initialise the next one
-                    if (gCurrentScene) {
-                        std::cout << "[main] Shutting down current scene " << gCurrentLevelIndex << std::endl;
-                        gCurrentScene->shutdown();
-                    }
-
-                    switchToScene(nextScene);
-
-                    // Update global game status to reflect the new scene
-                    if (nextScene == 2) gGameStatus = COMBAT;
-                    else gGameStatus = EXPLORATION;
-                    std::cout << "[main] Completed transition to scene " << nextScene << std::endl;
-                }
-            }
+             gCurrentScene->shutdown();
+             switchToScene(nextID);
+             gGameStatus = (nextID == 2) ? COMBAT : EXPLORATION;
         }
 
         render();
     }
 
-    // Shutdown current scene if exists
-    if (gCurrentScene) gCurrentScene->shutdown();
+    CloseAudioDevice();
+    CloseWindow();
     return 0;
 }

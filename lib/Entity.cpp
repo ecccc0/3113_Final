@@ -8,6 +8,7 @@ Entity::Entity() : mPosition {0.0f, 0.0f}, mMovement {0.0f, 0.0f},
                    mTexture {}, mTextureType {SINGLE}, mAngle {0.0f},
                    mSpriteSheetDimensions {}, mDirection {RIGHT}, 
                    mAnimationAtlas {{}}, mAnimationIndices {}, mFrameSpeed {0},
+                   mSpeed { DEFAULT_SPEED },
                    mEntityType {NONE} { }
 
 Entity::Entity(Vector2 position, Vector2 scale, const char *textureFilepath, 
@@ -200,11 +201,7 @@ void Entity::AIWander()
     if (mIsCollidingRight) { moveLeft();  }
     if (mIsCollidingTop)   { moveDown();  }
     if (mIsCollidingBottom){ moveUp();    }
-    
-    // Safety: If stuck or initializing
-    if (GetLength(mMovement) == 0.0f) {
-        moveRight();
-    }
+    // If no movement, remain idle; do not force motion
 }
 
 void Entity::AIFollow(Entity *target)

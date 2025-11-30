@@ -1,4 +1,5 @@
 #include "../lib/Scene.h"
+#include "../lib/GameTypes.h"
 
 class CombatScene : public Scene
 {

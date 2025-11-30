@@ -98,6 +98,7 @@ void LevelOne::initialise()
         mGameState.worldEnemies[0].setAcceleration({ 0.0f, 0.0f });
         mGameState.worldEnemies[0].setAIType(WANDERER);
         mGameState.worldEnemies[0].setAIState(IDLE);
+        mGameState.worldEnemies[0].setSpeed(80);
     } else {
         mGameState.enemyCount = 0;
         mGameState.worldEnemies = nullptr;
@@ -116,6 +117,12 @@ void LevelOne::update(float deltaTime)
     // We pass 'enemies' as collidable entities if we want physical blocking,
     // but here we handle the trigger manually below.
     mGameState.player->update(deltaTime, mGameState.player, mGameState.map, NULL, 0);
+    // Push back fog of war around player
+    if (mGameState.map && mGameState.player)
+    {
+        Vector2 pPos = mGameState.player->getPosition();
+        mGameState.map->revealTiles(pPos, 200.0f);
+    }
     
     // 1b. Update Followers (follow player)
     // Physics parameters (tweak as desired)
