@@ -17,7 +17,7 @@ endif
 
 # Default values
 CXX = g++
-CXXFLAGS = -std=c++11
+CXXFLAGS = -std=c++11 -O0
 
 # Raylib configuration using pkg-config (Posix). For Windows we assume a fixed path.
 RAYLIB_CFLAGS = $(shell pkg-config --cflags raylib 2>/dev/null)

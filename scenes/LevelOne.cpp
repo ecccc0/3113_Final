@@ -67,9 +67,9 @@ void LevelOne::initialise()
     Entity* mona  = new Entity({ playerPos.x - spacing * 2.0f, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_mona.png", NPC);
     Entity* noir  = new Entity({ playerPos.x - spacing * 3.0f, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_noir.png", NPC);
 
-    skull->setAIType(FOLLOWER); skull->setAIState(IDLE); skull->activate(); skull->setAcceleration({0.0f,0.0f});
-    mona->setAIType(FOLLOWER);  mona->setAIState(IDLE);  mona->activate();  mona->setAcceleration({0.0f,0.0f});
-    noir->setAIType(FOLLOWER);  noir->setAIState(IDLE);  noir->activate();  noir->setAcceleration({0.0f,0.0f});
+    skull->setAIType(AI_SENTRY); skull->setAIState(IDLE); skull->activate(); skull->setAcceleration({0.0f,0.0f});
+    mona->setAIType(AI_SENTRY);  mona->setAIState(IDLE);  mona->activate();  mona->setAcceleration({0.0f,0.0f});
+    noir->setAIType(AI_SENTRY);  noir->setAIState(IDLE);  noir->activate();  noir->setAcceleration({0.0f,0.0f});
 
     mFollowers.push_back(skull);
     mFollowers.push_back(mona);
@@ -97,8 +97,12 @@ void LevelOne::initialise()
         mGameState.worldEnemies[0].setEntityType(NPC);
         mGameState.worldEnemies[0].activate();
         mGameState.worldEnemies[0].setAcceleration({ 0.0f, 0.0f });
-        mGameState.worldEnemies[0].setAIType(WANDERER);
-        mGameState.worldEnemies[0].setAIState(IDLE);
+        mGameState.worldEnemies[0].setAIType(AI_GUARD);
+        mGameState.worldEnemies[0].setAIState(PATROLLING);
+        // Initialise patrol route (simple horizontal ping-pong)
+        Vector2 startPos = mGameState.worldEnemies[0].getPosition();
+        mGameState.worldEnemies[0].setStartPosition(startPos);
+        mGameState.worldEnemies[0].setPatrolTarget({ startPos.x + 80.0f, startPos.y });
         mGameState.worldEnemies[0].setSpeed(80);
     } else {
         mGameState.enemyCount = 0;
@@ -135,7 +139,7 @@ void LevelOne::update(float deltaTime)
 
     // --- STEALTH / DETECTION CONSTANTS ---
     const float AMBUSH_DISTANCE = 60.0f; // Close range for back attack
-    const float SIGHT_DISTANCE  = 200.0f;
+    const float SIGHT_DISTANCE  = 100.0f;
     const float SIGHT_ANGLE     = 90.0f; // Full cone angle
     bool isSpotted = false; // Aggregate spotted state (for shader/effects)
 
@@ -154,7 +158,7 @@ void LevelOne::update(float deltaTime)
         // if (inSight && mGameState.map && !mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) inSight = false;
         if (inSight) {
             isSpotted = true;
-            // Potential future behavior: enemy->setAIState(FOLLOWING);
+            // Potential future behavior: enemy->setAIState(CHASING);
         }
 
         // B. Ambush Attempt (player advantage)
@@ -172,15 +176,19 @@ void LevelOne::update(float deltaTime)
             }
         }
 
-        // C. Collision Trigger (Enemy advantage / neutral)
+        // C. Collision Trigger -> Decide Combat Advantage
         if (player->isColliding(enemy)) {
-            std::cout << "DETECTED/COLLISION!" << std::endl;
-            mGameState.nextSceneID       = 2;
+            mGameState.nextSceneID       = 2; // Combat Scene
             mGameState.engagedEnemyIndex = i;
             mGameState.returnSceneID     = gCurrentLevelIndex;
-            // Determine advantage placeholder:
-            // if (inSight || enemy->getAIState() == FOLLOWING) { /* gCombatAdvantage = ENEMY_ADVANTAGE; */ }
-            // else { /* gCombatAdvantage = NEUTRAL; */ }
+
+            if (enemy->getAIState() == CHASING) {
+                std::cout << "Combat Start: SURPRISE ATTACK (Enemy Turn 1st)" << std::endl;
+                // gCombatState = ENEMY_ADVANTAGE; // TODO: integrate into game state
+            } else {
+                std::cout << "Combat Start: NEUTRAL" << std::endl;
+                // gCombatState = NEUTRAL;
+            }
             return;
         }
     }

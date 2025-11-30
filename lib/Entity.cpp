@@ -1,5 +1,6 @@
 #include "Entity.h"
 #include "raymath.h" // Needed for Vector2Normalize, Vector2Length, Vector2Distance
+#include <cfloat> // For FLT_MAX
 #include <cmath> // For cosf
 
 Entity::Entity() : mPosition {0.0f, 0.0f}, mMovement {0.0f, 0.0f}, 
@@ -215,10 +216,10 @@ void Entity::AIFollow(Entity *target)
     switch (mAIState)
     {
     case IDLE:
-        if (dist < 300.0f) mAIState = WALKING;
+        if (dist < 300.0f) mAIState = PATROLLING;
         break;
 
-    case WALKING:
+    case PATROLLING:
         if (dist < 30.0f) {
             mMovement = {0.0f, 0.0f}; // Stop if close enough
             return;
@@ -240,19 +241,142 @@ void Entity::AIFollow(Entity *target)
     }
 }
 
+// ------------------------------------------------------------
+// Phase 2: Central AI Execution
+// ------------------------------------------------------------
+void Entity::aiExecute(Entity* player, Map* map, float deltaTime)
+{
+    switch (mAIType)
+    {
+    case AI_GUARD:
+        aiGuard(player, map, deltaTime);
+        break;
+
+    case AI_SENTRY:
+        // Wake if player close
+        if (Vector2Distance(mPosition, player->getPosition()) < 150.0f) {
+            mAIState = CHASING;
+        }
+        if (mAIState == CHASING) aiChase(player, deltaTime);
+        break;
+
+    case AI_TRAP:
+        // Reuse patrol for simple hazard movement
+        aiPatrol(deltaTime);
+        break;
+    default:
+        break;
+    }
+}
+
+// Basic patrol between start and patrol target, with waypoint wait timer.
+void Entity::aiPatrol(float deltaTime)
+{
+    // Simple logic: Move to Target, then wait, then flip back to Start
+    if (mAIState == IDLE) {
+        mWaitTimer += deltaTime;
+        if (mWaitTimer > 2.0f) {
+            mAIState = PATROLLING;
+            mWaitTimer = 0.0f;
+        }
+        mMovement = {0.0f, 0.0f};
+        return;
+    }
+    else if (mAIState == PATROLLING) {
+        moveTowards(mPatrolTarget, deltaTime);
+        if (Vector2Distance(mPosition, mPatrolTarget) < 5.0f) {
+            // Swap Target and Start to loop
+            Vector2 temp = mStartPosition;
+            mStartPosition = mPatrolTarget;
+            mPatrolTarget = temp;
+            mAIState = IDLE;
+            mMovement = {0.0f, 0.0f};
+        }
+    }
+}
+
+// Chase logic: move directly toward player until far; then transition to RETURNING.
+void Entity::aiChase(Entity* player, float deltaTime)
+{
+    if (!player) return;
+    moveTowards(player->getPosition(), deltaTime);
+    // Face the target explicitly
+    Vector2 dir = Vector2Subtract(player->getPosition(), mPosition);
+    if (fabs(dir.x) > fabs(dir.y)) {
+        mDirection = (dir.x > 0) ? RIGHT : LEFT;
+    } else {
+        mDirection = (dir.y > 0) ? DOWN : UP;
+    }
+}
+
+// Guard composite: handle patrol/chase/return transitions and detection.
+void Entity::aiGuard(Entity* player, Map* map, float deltaTime)
+{
+    (void)map; // LOS can be integrated later
+    bool canSeePlayer = player ? isEntityInSight(player, 200.0f, 90.0f) : false;
+
+    switch (mAIState)
+    {
+    case IDLE:
+    case PATROLLING:
+        if (canSeePlayer) {
+            mAIState = CHASING;
+            mSpeed = 140; // accelerate when chasing
+        }
+        aiPatrol(deltaTime); // continue patrolling until chase triggers
+        break;
+
+    case CHASING:
+        if (!canSeePlayer) {
+            mWaitTimer += deltaTime;
+            if (mWaitTimer > 2.0f) {
+                mAIState = RETURNING;
+                mWaitTimer = 0.0f;
+                mSpeed = 80; // slow back down
+            }
+        } else {
+            mWaitTimer = 0.0f;
+        }
+        aiChase(player, deltaTime);
+        break;
+
+    case RETURNING:
+        moveTowards(mStartPosition, deltaTime);
+        if (Vector2Distance(mPosition, mStartPosition) < 5.0f) {
+            mAIState = IDLE;
+            mSpeed = 80; // ensure base speed
+        }
+        if (canSeePlayer) {
+            mAIState = CHASING;
+            mSpeed = 140;
+        }
+        break;
+    }
+}
+
+void Entity::moveTowards(Vector2 target, float deltaTime)
+{
+    (void)deltaTime; // Not needed; movement scaled later by update()
+    Vector2 directionRaw = Vector2Subtract(target, mPosition);
+    if (Vector2Length(directionRaw) > 0.0f)
+        mMovement = Vector2Normalize(directionRaw);
+    else
+        mMovement = {0.0f, 0.0f};
+}
+
 void Entity::AIActivate(Entity *target)
 {
     switch (mAIType)
     {
-    case WANDERER:
+    case AI_GUARD:
         AIWander();
         break;
 
-    case FOLLOWER:
+    case AI_SENTRY:
         AIFollow(target);
         break;
-    
-    case FLYER:     
+
+    case AI_TRAP:     
         AIWander(); 
         break;
     
@@ -264,9 +388,11 @@ void Entity::AIActivate(Entity *target)
 void Entity::update(float deltaTime, Entity *player, Map *map, 
     Entity *collidableEntities, int collisionCheckCount)
 {
-    if (mEntityStatus == INACTIVE) return;
-    
-    if (mEntityType == NPC) AIActivate(player);
+    if (isActive()) {
+        // Phase 3: central AI hook
+        if (mEntityType == NPC) {
+            aiExecute(player, map, deltaTime);
+        }
 
     resetColliderFlags();
 
@@ -305,6 +431,7 @@ void Entity::update(float deltaTime, Entity *player, Map *map,
     // 6. ANIMATE
     if (mTextureType == ATLAS && Vector2Length(mMovement) != 0) 
         animate(deltaTime);
+    }
 }
 
 void Entity::render()
@@ -429,7 +556,7 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
     Map* map, float deltaTime, float tetherSpeed, float repelStrength,
     float jitterStrength, float damping)
 {
-    if (mEntityType != NPC || mAIType != FOLLOWER || leader == nullptr) return;
+    if (mEntityType != NPC || mAIType != AI_SENTRY || leader == nullptr) return;
 
     Vector2 currentPos = mPosition;
 

@@ -7,8 +7,19 @@
 enum Direction    { LEFT, UP, RIGHT, DOWN              };
 enum EntityStatus { ACTIVE, INACTIVE                   };
 enum EntityType   { PLAYER, BLOCK, PLATFORM, NPC, NONE };
-enum AIType       { WANDERER, FOLLOWER, FLYER          };
-enum AIState      { WALKING, IDLE, FOLLOWING           };
+// Updated AI enums (Phase 1: Patrol/Chase/Return behaviors)
+enum AIType { 
+    AI_GUARD,   // Patrols and chases
+    AI_SENTRY,  // Stationary until player close
+    AI_TRAP     // Moving hazard (invincible)
+};
+
+enum AIState { 
+    IDLE,        // Inactive / waiting
+    PATROLLING,  // Moving between waypoints
+    CHASING,     // Pursuing player
+    RETURNING    // Returning to start position
+};
 
 class Entity
 {
@@ -49,6 +60,11 @@ private:
     AIType  mAIType;
     AIState mAIState;
 
+    // Patrol / AI navigation data
+    Vector2 mStartPosition;    // Original post/guard position
+    Vector2 mPatrolTarget;     // Current patrol waypoint
+    float   mWaitTimer = 0.0f; // Time waiting at a waypoint
+
     // Follower System: Breadcrumbs
     std::deque<Vector2> mPositionHistory; 
 
@@ -70,6 +86,12 @@ private:
     void AIActivate(Entity *target);
     void AIWander();
     void AIFollow(Entity *target);
+    // Phase 2 AI Core
+    void aiExecute(Entity* player, Map* map, float deltaTime);
+    void aiGuard(Entity* player, Map* map, float deltaTime);
+    void aiPatrol(float deltaTime);
+    void aiChase(Entity* player, float deltaTime);
+    void moveTowards(Vector2 target, float deltaTime);
 
 public:
     static constexpr int   DEFAULT_SIZE          = 250;
@@ -156,6 +178,8 @@ public:
     }
     void setAIState(AIState newState)           { mAIState = newState;                     }
     void setAIType(AIType newType)              { mAIType = newType;                       }
+    void setStartPosition(Vector2 pos)          { mStartPosition = pos;                    }
+    void setPatrolTarget(Vector2 pos)           { mPatrolTarget  = pos;                    }
 
     // Advanced follower physics (tether + separation + jitter + integration)
     void updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& followers,
