@@ -1,35 +1,52 @@
 #version 330
 
-const float RED_LUM_CONSTANT = 0.2126;
-const float GREEN_LUM_CONSTANT = 0.7152;
-const float BLUE_LUM_CONSTANT = 0.0722;
-
 uniform sampler2D texture0;
 uniform vec2 lightPosition;
+uniform int status; 
 
+// Input from Vertex Shader
 in vec2 fragTexCoord;
 in vec2 fragPosition;
+in vec4 fragColor;      // <--- NEW: Receive the color
 
 out vec4 finalColor;
 
-// Adjustable attenuation parameters
-const float LINEAR_TERM    = 0.00003; // linear term
-const float QUADRATIC_TERM = 0.00003; // quadratic term
-const float MIN_BRIGHTNESS = 0.05;    // avoid total darkness
+// Lighting Constants
+const float LINEAR_TERM    = 0.00003;
+const float QUADRATIC_TERM = 0.00003;
+const float MIN_BRIGHTNESS = 0.05;
 
 float attenuate(float distance, float linearTerm, float quadraticTerm)
 {
-    float attenuation = 1.0 / (1.0 + 
-                               linearTerm * distance + 
-                               quadraticTerm * distance * distance);
-
+    float attenuation = 1.0 / (1.0 + linearTerm * distance + quadraticTerm * distance * distance);
     return max(attenuation, MIN_BRIGHTNESS);
 }
 
 void main()
 {
-    float distance = distance(lightPosition, fragPosition);
-    float brightness = attenuate(distance, LINEAR_TERM, QUADRATIC_TERM);
-    vec4 color = texture(texture0, fragTexCoord);
-    finalColor = vec4(color.rgb * brightness, color.a);
+    // 1. Calculate Lighting
+    float dist = distance(lightPosition, fragPosition);
+    float brightness = attenuate(dist, LINEAR_TERM, QUADRATIC_TERM);
+
+    // 2. Fetch Texture Color AND Multiply by Vertex Color
+    // This restores the Red/Transparent tints from your code
+    vec4 texColor = texture(texture0, fragTexCoord) * fragColor; 
+    
+    // 3. Apply Lighting (Keep alpha intact)
+    vec4 litColor = vec4(texColor.rgb * brightness, texColor.a);
+
+    // 4. Apply Status Logic (Spotted/Hidden)
+    if (status == 1) // SPOTTED: Red Tint
+    {
+        // Mix with pure red, preserving original alpha
+        finalColor = mix(litColor, vec4(1.0, 0.0, 0.0, litColor.a), 0.3); 
+    }
+    else if (status == 2) // HIDDEN: Darken
+    {
+        finalColor = vec4(litColor.rgb * 0.5, litColor.a);
+    }
+    else 
+    {
+        finalColor = litColor;
+    }
 }

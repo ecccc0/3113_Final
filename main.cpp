@@ -3,6 +3,7 @@
 #include "lib/GameData.h"
 #include "scenes/LevelOne.h"
 #include "scenes/CombatScene.h"
+#include "lib/ShaderProgram.h"
 
 // --- GLOBALS ---
 constexpr int SCREEN_WIDTH  = 1000;
@@ -21,6 +22,8 @@ std::vector<Combatant> gParty; // Defined here, populated from GameData
 
 // Global Tracking
 std::vector<std::vector<bool>> gSceneEnemyDefeated; 
+
+ShaderProgram gShader;
 
 
 void switchToScene(int sceneIndex);
@@ -53,6 +56,8 @@ void initialise()
     
     // Initialize Audio (Requirement 6) [cite: 45]
     InitAudioDevice();
+
+    gShader.load("shaders/vertex.glsl", "shaders/fragment.glsl");
 
     // Reset global enemy defeat tracking at app start (new session)
     gSceneEnemyDefeated.clear();
@@ -109,11 +114,21 @@ void render()
     // 1. EXPLORATION: Draw World + Party HUD
     if (gGameStatus == EXPLORATION)
     {
+        gShader.begin();
+
+        gShader.setInt("status", gCurrentScene->getState().shaderStatus);
+
+        if (gCurrentScene->getState().player) {
+            Vector2 playerPos = gCurrentScene->getState().player->getPosition();
+            gShader.setVector2("lightPosition", playerPos);
+        }
         // --- WORLD RENDERING ---
         // We assume the current scene has a valid camera setup
         BeginMode2D(gCurrentScene->getState().camera);
         gCurrentScene->render();
         EndMode2D();
+
+        gShader.end();
 
         // --- HUD RENDERING (Fixed on screen) ---
         // Draw a semi-transparent box behind the stats for readability
@@ -154,6 +169,13 @@ void render()
     }
 
     EndDrawing();
+}
+
+void Shutdown() 
+{
+    gShader.unload();
+    CloseAudioDevice();
+    CloseWindow();
 }
 
 int main()

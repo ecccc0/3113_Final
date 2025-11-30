@@ -2,7 +2,7 @@
 #ifndef EFFECTS_H
 #define EFFECTS_H
 
-enum EffectType { NONE, FADEIN, FADEOUT, SHRINK, GROW };
+enum EffectType { NONE_EFFECT, FADEIN, FADEOUT, SHRINK, GROW };
 
 class Effects
 {

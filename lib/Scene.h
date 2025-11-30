@@ -47,6 +47,8 @@ struct GameState
 
     // Per-level defeated enemy flags (owned by scene)
     std::vector<bool> defeatedEnemies;
+
+    int shaderStatus = 0; // 0 = normal, 1 = spotted, 2 = hidden
 };
 
 class Scene 

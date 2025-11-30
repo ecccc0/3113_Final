@@ -93,6 +93,7 @@ void LevelOne::initialise()
         mGameState.worldEnemies[0] = Entity();
         mGameState.worldEnemies[0].setPosition({ 600.0f, 200.0f });
         mGameState.worldEnemies[0].setScale({ 32.0f, 32.0f });
+        mGameState.worldEnemies[0].setColliderDimensions({ 32.0f, 32.0f });
         mGameState.worldEnemies[0].setTexture("assets/enemy_shadow.png");
         mGameState.worldEnemies[0].setEntityType(NPC);
         mGameState.worldEnemies[0].activate();
@@ -162,6 +163,13 @@ void LevelOne::update(float deltaTime)
             enemy->setAIState(CHASING);
         }
 
+        if (isSpotted) {
+            mGameState.shaderStatus = 1; // Spotted
+        }
+        else {
+            mGameState.shaderStatus = 0; // Normal
+        }
+
         // B. Ambush Attempt (player advantage)
         if (IsKeyPressed(KEY_SPACE)) {
             float distToEnemy = Vector2Distance(player->getPosition(), enemy->getPosition());
@@ -178,7 +186,7 @@ void LevelOne::update(float deltaTime)
             }
         }
 
-        // C. Collision Trigger -> Decide Combat Advantage
+        // C. Collision Trigger
         if (player->isColliding(enemy)) {
             mGameState.nextSceneID       = 2; // Combat Scene
             mGameState.engagedEnemyIndex = i;
@@ -187,10 +195,7 @@ void LevelOne::update(float deltaTime)
             if (enemy->getAIState() == CHASING) {
                 std::cout << "Combat Start: SURPRISE ATTACK (Enemy Turn 1st)" << std::endl;
                 mGameState.combatAdvantage = false; // enemy advantage
-            } else {
-                std::cout << "Combat Start: PLAYER ADVANTAGE" << std::endl;
-                mGameState.combatAdvantage = true; // player advantage
-            }
+            } 
             return;
         }
     }
@@ -232,6 +237,6 @@ void LevelOne::render()
         // Convert facing vector to angle in degrees (Raylib expects degrees)
         float angleDeg = atan2f(dir.y, dir.x) * (180.0f / PI);
         // Draw a 90-degree cone (±45°) with radius matching SIGHT_DISTANCE (200)
-        DrawCircleSector(pos, 200.0f, angleDeg - 45.0f, angleDeg + 45.0f, 10, Fade(RED, 0.2f));
+        DrawCircleSector(pos, 100.0f, angleDeg - 45.0f, angleDeg + 45.0f, 10, Fade(RED, 0.2f));
     }
 }
