@@ -1,4 +1,5 @@
 #include "LevelOne.h"
+#include <cmath> // atan2f for debug cone rendering
 
 // --- LEVEL DATA ---
 // 1 = Wall (Solid), 0 = Floor (Passable)
@@ -113,49 +114,81 @@ void LevelOne::initialise()
 
 void LevelOne::update(float deltaTime)
 {
-    // 1. Update Player (Collision with Map)
-    // We pass 'enemies' as collidable entities if we want physical blocking,
-    // but here we handle the trigger manually below.
+    // --- PLAYER UPDATE & MAP INTERACTION ---
     mGameState.player->update(deltaTime, mGameState.player, mGameState.map, NULL, 0);
-    // Push back fog of war around player
     if (mGameState.map && mGameState.player)
     {
         Vector2 pPos = mGameState.player->getPosition();
         mGameState.map->revealTiles(pPos, 200.0f);
     }
-    
-    // 1b. Update Followers (follow player)
-    // Physics parameters (tweak as desired)
-    constexpr float TETHER_SPEED    = 0.08f;    // Spring stiffness (raised for responsiveness)
-    constexpr float REPEL_STRENGTH  = 20000.0f; // Separation force magnitude (increased)
-    constexpr float JITTER_STRENGTH = 5.0f;    // Idle jitter magnitude
-    constexpr float DAMPING         = 0.90f;   // Velocity damping (slightly lighter to keep motion)
+
+    // --- FOLLOWER PARTY PHYSICS ---
+    constexpr float TETHER_SPEED    = 0.08f;
+    constexpr float REPEL_STRENGTH  = 20000.0f;
+    constexpr float JITTER_STRENGTH = 5.0f;
+    constexpr float DAMPING         = 0.90f;
     for (Entity* f : mFollowers) {
         if (!f) continue;
         f->updateFollowerPhysics(mGameState.player, mFollowers, mGameState.map, deltaTime,
             TETHER_SPEED, REPEL_STRENGTH, JITTER_STRENGTH, DAMPING);
     }
-    
-    // 2. Update Enemies
+
+    // --- STEALTH / DETECTION CONSTANTS ---
+    const float AMBUSH_DISTANCE = 60.0f; // Close range for back attack
+    const float SIGHT_DISTANCE  = 200.0f;
+    const float SIGHT_ANGLE     = 90.0f; // Full cone angle
+    bool isSpotted = false; // Aggregate spotted state (for shader/effects)
+
+    // --- ENEMY UPDATE & COMBAT TRIGGERS ---
     for (int i = 0; i < mGameState.enemyCount; i++)
     {
-        // Update Enemy Logic
-        mGameState.worldEnemies[i].update(deltaTime, mGameState.player, mGameState.map, NULL, 0);
+        Entity* enemy  = &mGameState.worldEnemies[i];
+        Entity* player = mGameState.player;
 
-        // 3. COMBAT TRIGGER
-        // If Player touches an Active Enemy
-        if (mGameState.worldEnemies[i].isActive() && mGameState.player->isColliding(&mGameState.worldEnemies[i]))
-        {
-            mGameState.nextSceneID = 2; // combat scene index
-            mGameState.engagedEnemyIndex = i; // which enemy engaged
-            mGameState.returnSceneID = gCurrentLevelIndex; // come back here after combat
-            std::cout << "Transitioning to Combat Scene! Enemy index=" << i << std::endl;
-            // Do not mark defeated yet; only after victory in CombatScene
+        enemy->update(deltaTime, player, mGameState.map, NULL, 0);
+        if (!enemy->isActive()) continue;
+
+        // A. Detection (view cone)
+        bool inSight = enemy->isEntityInSight(player, SIGHT_DISTANCE, SIGHT_ANGLE);
+        // Optional: line-of-sight check via map raycast (commented placeholder)
+        // if (inSight && mGameState.map && !mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) inSight = false;
+        if (inSight) {
+            isSpotted = true;
+            // Potential future behavior: enemy->setAIState(FOLLOWING);
+        }
+
+        // B. Ambush Attempt (player advantage)
+        if (IsKeyPressed(KEY_SPACE)) {
+            float distToEnemy = Vector2Distance(player->getPosition(), enemy->getPosition());
+            if (distToEnemy < AMBUSH_DISTANCE) {
+                if (player->checkAmbush(enemy)) {
+                    std::cout << "AMBUSH SUCCESS!" << std::endl;
+                    mGameState.nextSceneID       = 2; // CombatScene
+                    mGameState.engagedEnemyIndex = i;
+                    mGameState.returnSceneID     = gCurrentLevelIndex;
+                    // Advantage flag could be set here (e.g., gCombatAdvantage = PLAYER_ADVANTAGE)
+                    return; // Early transition
+                }
+            }
+        }
+
+        // C. Collision Trigger (Enemy advantage / neutral)
+        if (player->isColliding(enemy)) {
+            std::cout << "DETECTED/COLLISION!" << std::endl;
+            mGameState.nextSceneID       = 2;
+            mGameState.engagedEnemyIndex = i;
+            mGameState.returnSceneID     = gCurrentLevelIndex;
+            // Determine advantage placeholder:
+            // if (inSight || enemy->getAIState() == FOLLOWING) { /* gCombatAdvantage = ENEMY_ADVANTAGE; */ }
+            // else { /* gCombatAdvantage = NEUTRAL; */ }
+            return;
         }
     }
 
-    // 4. Camera Follow
-    // Smooth camera following could go here, but hard snapping is fine for prototype
+    // Potential shader/effect hook: pass isSpotted
+    // mShader.setInt("status", isSpotted ? 1 : 0);
+
+    // --- CAMERA FOLLOW ---
     mGameState.camera.target = mGameState.player->getPosition();
 }
 
@@ -177,4 +210,18 @@ void LevelOne::render()
 
     // Draw Player
     if (mGameState.player) mGameState.player->render();
+
+    // DEBUG: Draw enemy view cones (simple sectors)
+    for (int i = 0; i < mGameState.enemyCount; i++)
+    {
+        Entity* e = &mGameState.worldEnemies[i];
+        if (!e->isActive()) continue;
+
+        Vector2 pos = e->getPosition();
+        Vector2 dir = e->getDirectionVector();
+        // Convert facing vector to angle in degrees (Raylib expects degrees)
+        float angleDeg = atan2f(dir.y, dir.x) * (180.0f / PI);
+        // Draw a 90-degree cone (±45°) with radius matching SIGHT_DISTANCE (200)
+        DrawCircleSector(pos, 200.0f, angleDeg - 45.0f, angleDeg + 45.0f, 10, Fade(RED, 0.2f));
+    }
 }

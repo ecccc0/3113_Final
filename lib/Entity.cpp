@@ -1,5 +1,6 @@
 #include "Entity.h"
-#include "raymath.h" // Needed for Vector2Normalize, Vector2Length
+#include "raymath.h" // Needed for Vector2Normalize, Vector2Length, Vector2Distance
+#include <cmath> // For cosf
 
 Entity::Entity() : mPosition {0.0f, 0.0f}, mMovement {0.0f, 0.0f}, 
                    mVelocity {0.0f, 0.0f}, mAcceleration {0.0f, 0.0f},
@@ -371,11 +372,54 @@ void Entity::displayCollider()
 
 Vector2 Entity::getDirectionVector() const
 {
-    if (mDirection == LEFT)  return { -1.0f, 0.0f };
-    if (mDirection == RIGHT) return { 1.0f, 0.0f };
-    if (mDirection == UP)    return { 0.0f, -1.0f };
-    if (mDirection == DOWN)  return { 0.0f, 1.0f };
-    return { 0.0f, 0.0f };
+    switch (mDirection) {
+        case LEFT:  return { -1.0f,  0.0f };
+        case RIGHT: return {  1.0f,  0.0f };
+        case UP:    return {  0.0f, -1.0f };
+        case DOWN:  return {  0.0f,  1.0f };
+        default:    return {  0.0f,  1.0f }; // Default DOWN
+    }
+}
+
+// ----------------------------------------------------------------
+// SIGHT & AMBUSH LOGIC
+// ----------------------------------------------------------------
+// Check if 'other' is within this entity's view cone.
+// viewDistance: max distance in pixels
+// viewAngleDeg: full cone angle (e.g., 90 means 45 deg each side)
+bool Entity::isEntityInSight(Entity* other, float viewDistance, float viewAngleDeg)
+{
+    if (!other || !other->isActive() || !this->isActive()) return false;
+
+    Vector2 myPos    = this->getPosition();
+    Vector2 otherPos = other->getPosition();
+
+    // 1. Distance check
+    float dist = Vector2Distance(myPos, otherPos);
+    if (dist > viewDistance) return false;
+
+    // 2. Angle check via dot product
+    Vector2 toTarget = Vector2Subtract(otherPos, myPos);
+    if (Vector2Length(toTarget) <= 0.001f) return true; // Same spot -> seen
+    toTarget = Vector2Normalize(toTarget);
+    Vector2 facing   = this->getDirectionVector();
+
+    float dot = Vector2DotProduct(facing, toTarget);
+
+    float angleRad  = (viewAngleDeg / 2.0f) * (PI / 180.0f);
+    float threshold = cosf(angleRad); // Minimum dot to be inside cone
+
+    return (dot > threshold);
+}
+
+// Attacker is considered "behind" victim if they face roughly the same direction.
+// Dot > 0.5 (~60 deg alignment) considered acceptable.
+bool Entity::checkAmbush(Entity* victim)
+{
+    if (!victim || !victim->isActive() || !this->isActive()) return false;
+    Vector2 myDir    = this->getDirectionVector();
+    Vector2 theirDir = victim->getDirectionVector();
+    return (Vector2DotProduct(myDir, theirDir) > 0.5f);
 }
 
 // ----------------------------------------------------------------

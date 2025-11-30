@@ -109,6 +109,8 @@ public:
 
     // Stealth / Ambush Helpers
     Vector2 getDirectionVector() const; // New helper for Dot Product calculation
+    bool isEntityInSight(Entity* other, float viewDistance = 150.0f, float viewAngleDeg = 90.0f); // View cone check (defaults)
+    bool checkAmbush(Entity* victim); // Direction alignment (attacker behind victim)
 
     // Getters
     Vector2     getPosition()              const { return mPosition;              }
