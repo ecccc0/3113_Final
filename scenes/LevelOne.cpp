@@ -19,8 +19,8 @@ unsigned int LEVEL_1_DATA[] =
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
 };
 
-extern std::vector<std::vector<bool>> gSceneEnemyDefeated; // from main.cpp
-extern int gCurrentLevelIndex; // to index gSceneEnemyDefeated
+// Defeated enemies are tracked per scene in mGameState.defeatedEnemies now.
+extern int gCurrentLevelIndex; // used to set returnSceneID during combat transitions
 
 void LevelOne::initialise()
 {
@@ -59,6 +59,12 @@ void LevelOne::initialise()
     );
     mGameState.player->setAcceleration({ 0.0f, 0.0f });
 
+    // If coming back from combat, restore player position before spawning followers
+    if (mGameState.hasReturnSpawnPos) {
+        mGameState.player->setPosition(mGameState.returnSpawnPos);
+        mGameState.hasReturnSpawnPos = false; // consume so we don't reuse it on next initialise
+    }
+
     // 2b. CREATE PARTY FOLLOWERS (Skull, Mona, Noir)
     // Spawn behind player with slight offsets
     Vector2 playerPos = mGameState.player->getPosition();
@@ -75,18 +81,12 @@ void LevelOne::initialise()
     mFollowers.push_back(mona);
     mFollowers.push_back(noir);
 
-    // For prototype we have 1 enemy; ensure global defeated flags sized
-    if (gCurrentLevelIndex >= 0) {
-        if (gSceneEnemyDefeated.size() <= (size_t)gCurrentLevelIndex)
-            gSceneEnemyDefeated.resize(gCurrentLevelIndex + 1);
-        // Resize enemy flags for this level (enemyCount planned = 1)
-        if (gSceneEnemyDefeated[gCurrentLevelIndex].size() < 1)
-            gSceneEnemyDefeated[gCurrentLevelIndex].resize(1, false);
-        mEnemyDefeated = gSceneEnemyDefeated[gCurrentLevelIndex];
-    }
+    // For prototype we have 1 enemy; ensure local defeated flags sized
+    if (mGameState.defeatedEnemies.size() < 1)
+        mGameState.defeatedEnemies.resize(1, false);
 
     // 3. CREATE ENEMY ONLY IF NOT DEFEATED
-    bool enemy0Defeated = (!mEnemyDefeated.empty() && mEnemyDefeated[0]);
+    bool enemy0Defeated = (!mGameState.defeatedEnemies.empty() && mGameState.defeatedEnemies[0]);
     if (!enemy0Defeated) {
         mGameState.enemyCount = 1;
         mGameState.worldEnemies = new Entity[mGameState.enemyCount];
@@ -158,7 +158,8 @@ void LevelOne::update(float deltaTime)
         // if (inSight && mGameState.map && !mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) inSight = false;
         if (inSight) {
             isSpotted = true;
-            // Potential future behavior: enemy->setAIState(CHASING);
+            // Enemy spots the player: begin chase for enemy advantage on contact
+            enemy->setAIState(CHASING);
         }
 
         // B. Ambush Attempt (player advantage)
@@ -170,7 +171,8 @@ void LevelOne::update(float deltaTime)
                     mGameState.nextSceneID       = 2; // CombatScene
                     mGameState.engagedEnemyIndex = i;
                     mGameState.returnSceneID     = gCurrentLevelIndex;
-                    // Advantage flag could be set here (e.g., gCombatAdvantage = PLAYER_ADVANTAGE)
+                    // Player initiated combat with successful ambush
+                    mGameState.combatAdvantage   = true;
                     return; // Early transition
                 }
             }
@@ -184,10 +186,10 @@ void LevelOne::update(float deltaTime)
 
             if (enemy->getAIState() == CHASING) {
                 std::cout << "Combat Start: SURPRISE ATTACK (Enemy Turn 1st)" << std::endl;
-                // gCombatState = ENEMY_ADVANTAGE; // TODO: integrate into game state
+                mGameState.combatAdvantage = false; // enemy advantage
             } else {
-                std::cout << "Combat Start: NEUTRAL" << std::endl;
-                // gCombatState = NEUTRAL;
+                std::cout << "Combat Start: PLAYER ADVANTAGE" << std::endl;
+                mGameState.combatAdvantage = true; // player advantage
             }
             return;
         }

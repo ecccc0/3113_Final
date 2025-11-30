@@ -3,13 +3,19 @@
 // CombatScene should use its own GameState.party rather than the global gParty
 
 void CombatScene::initialise() {
-    mState = PLAYER_TURN_MAIN;
+    // Set initial turn state based on advantage
         mActiveMemberIndex = 0;
         mSelectedSkillIndex = 0;
         mSelectedTargetIndex = 0;
         mActiveEnemyIndex = 0;
-        mLog = "Ambush! Phantom Thieves have the advantage.";
         mTimer = 0.0f;
+        if (!mGameState.combatAdvantage) {
+            mState = ENEMY_TURN;
+            mLog = "Surprise Attack! Shadows act first.";
+        } else {
+            mState = PLAYER_TURN_MAIN; // Player advantage
+            mLog = "Ambush! Phantom Thieves have the advantage.";
+        }
         // Clear any stale transition request
         mGameState.nextSceneID = -1;
 
@@ -19,7 +25,7 @@ void CombatScene::initialise() {
             member.isDown = false;
         }
 
-        // TEMP: Encounter generation could depend on engagedEnemyIndex
+        // Encounter generation could depend on engagedEnemyIndex
         // For prototype keep two test enemies; future improvement: load from level data
         mGameState.battleEnemies.clear();
         Combatant shadow1;
@@ -69,17 +75,11 @@ void CombatScene::initialise() {
         if (!enemiesAlive) {
             mLog = "VICTORY! Press ENTER.";
             if (IsKeyPressed(KEY_ENTER)) {
-                // Mark the engaged enemy (if valid) as defeated in global flags
-                extern std::vector<std::vector<bool>> gSceneEnemyDefeated;
-                if (mGameState.returnSceneID >= 0) {
-                    if (gSceneEnemyDefeated.size() <= (size_t)mGameState.returnSceneID)
-                        gSceneEnemyDefeated.resize(mGameState.returnSceneID + 1);
-                    if (mGameState.engagedEnemyIndex >= 0) {
-                        auto &vec = gSceneEnemyDefeated[mGameState.returnSceneID];
-                        if (vec.size() <= (size_t)mGameState.engagedEnemyIndex)
-                            vec.resize(mGameState.engagedEnemyIndex + 1, false);
-                        vec[mGameState.engagedEnemyIndex] = true;
-                    }
+                // Mark the engaged enemy (if valid) as defeated in this scene's state
+                if (mGameState.engagedEnemyIndex >= 0) {
+                    if (mGameState.defeatedEnemies.size() <= (size_t)mGameState.engagedEnemyIndex)
+                        mGameState.defeatedEnemies.resize(mGameState.engagedEnemyIndex + 1, false);
+                    mGameState.defeatedEnemies[mGameState.engagedEnemyIndex] = true;
                 }
                 mGameState.nextSceneID = mGameState.returnSceneID >= 0 ? mGameState.returnSceneID : 0;
             }

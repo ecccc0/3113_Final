@@ -195,51 +195,6 @@ void Entity::animate(float deltaTime)
     }
 }
 
-void Entity::AIWander() 
-{ 
-    // Top-Down Bounce Logic
-    // If we hit a wall, reverse direction on that axis
-    if (mIsCollidingLeft)  { moveRight(); }
-    if (mIsCollidingRight) { moveLeft();  }
-    if (mIsCollidingTop)   { moveDown();  }
-    if (mIsCollidingBottom){ moveUp();    }
-    // If no movement, remain idle; do not force motion
-}
-
-void Entity::AIFollow(Entity *target)
-{
-    // Basic 2D Follow logic
-    Vector2 targetPos = target->getPosition();
-    Vector2 diff = Vector2Subtract(targetPos, mPosition);
-    float dist = Vector2Length(diff);
-
-    switch (mAIState)
-    {
-    case IDLE:
-        if (dist < 300.0f) mAIState = PATROLLING;
-        break;
-
-    case PATROLLING:
-        if (dist < 30.0f) {
-            mMovement = {0.0f, 0.0f}; // Stop if close enough
-            return;
-        }
-
-        // Normalize direction
-        mMovement = Vector2Normalize(diff);
-
-        // Update Direction Enum for animation
-        if (fabs(mMovement.x) > fabs(mMovement.y)) {
-            mDirection = (mMovement.x < 0) ? LEFT : RIGHT;
-        } else {
-            mDirection = (mMovement.y < 0) ? UP : DOWN;
-        }
-        break;
-    
-    default:
-        break;
-    }
-}
 
 // ------------------------------------------------------------
 // Phase 2: Central AI Execution
@@ -321,7 +276,7 @@ void Entity::aiGuard(Entity* player, Map* map, float deltaTime)
     case PATROLLING:
         if (canSeePlayer) {
             mAIState = CHASING;
-            mSpeed = 140; // accelerate when chasing
+            mSpeed = 100; // accelerate when chasing
         }
         aiPatrol(deltaTime); // continue patrolling until chase triggers
         break;
@@ -332,7 +287,7 @@ void Entity::aiGuard(Entity* player, Map* map, float deltaTime)
             if (mWaitTimer > 2.0f) {
                 mAIState = RETURNING;
                 mWaitTimer = 0.0f;
-                mSpeed = 80; // slow back down
+                mSpeed = 70; // slow back down
             }
         } else {
             mWaitTimer = 0.0f;
@@ -364,26 +319,6 @@ void Entity::moveTowards(Vector2 target, float deltaTime)
         mMovement = {0.0f, 0.0f};
 }
 
-void Entity::AIActivate(Entity *target)
-{
-    switch (mAIType)
-    {
-    case AI_GUARD:
-        AIWander();
-        break;
-
-    case AI_SENTRY:
-        AIFollow(target);
-        break;
-
-    case AI_TRAP:     
-        AIWander(); 
-        break;
-    
-    default:
-        break;
-    }
-}
 
 void Entity::update(float deltaTime, Entity *player, Map *map, 
     Entity *collidableEntities, int collisionCheckCount)

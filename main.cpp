@@ -182,11 +182,24 @@ int main()
                  gLevels[nextID]->getState().party = gParty;
                  gLevels[nextID]->getState().returnSceneID = gCurrentLevelIndex;
                  gLevels[nextID]->getState().engagedEnemyIndex = gCurrentScene->getState().engagedEnemyIndex;
+                 // Pass combat advantage determined in exploration
+                 gLevels[nextID]->getState().combatAdvantage = gCurrentScene->getState().combatAdvantage;
+                 // Save player position for return after combat
+                 if (gCurrentScene->getState().player) {
+                     gLevels[nextID]->getState().returnSpawnPos = gCurrentScene->getState().player->getPosition();
+                     gLevels[nextID]->getState().hasReturnSpawnPos = true;
+                 }
+                 // Copy defeated enemy flags from level to combat scene
+                 gLevels[nextID]->getState().defeatedEnemies = gCurrentScene->getState().defeatedEnemies;
              }
              
-             // Return from Combat: Update Global Party
+             // Return from Combat: Update Global Party and restore spawn position in target level
              if (gCurrentLevelIndex == 2 && nextID != 2) {
                  gParty = gCurrentScene->getState().party;
+                 gLevels[nextID]->getState().returnSpawnPos = gCurrentScene->getState().returnSpawnPos;
+                 gLevels[nextID]->getState().hasReturnSpawnPos = gCurrentScene->getState().hasReturnSpawnPos;
+                 // Copy defeated enemy flags back to target level scene
+                 gLevels[nextID]->getState().defeatedEnemies = gCurrentScene->getState().defeatedEnemies;
              }
 
              gCurrentScene->shutdown();

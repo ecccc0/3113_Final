@@ -21,6 +21,9 @@ struct GameState
     int currentTurnIndex = 0;
     bool isPlayerTurn = true;
     std::string battleLog;
+    
+    // Combat advantage: true = player advantage, false = enemy advantage
+    bool combatAdvantage = true;
 
 
 
@@ -37,6 +40,13 @@ struct GameState
     // New generic combat transition tracking
     int returnSceneID = -1;      // Scene to return to after combat ends
     int engagedEnemyIndex = -1;  // Which enemy was engaged to start combat
+
+    // Position to respawn player when returning from combat
+    Vector2 returnSpawnPos = {0, 0};
+    bool hasReturnSpawnPos = false;
+
+    // Per-level defeated enemy flags (owned by scene)
+    std::vector<bool> defeatedEnemies;
 };
 
 class Scene 
