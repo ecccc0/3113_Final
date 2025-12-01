@@ -286,8 +286,18 @@ void Entity::aiChase(Entity* player, float deltaTime)
 // Guard composite: handle patrol/chase/return transitions and detection.
 void Entity::aiGuard(Entity* player, Map* map, float deltaTime)
 {
-    (void)map; // LOS can be integrated later
-    bool canSeePlayer = player ? isEntityInSight(player, 200.0f, 90.0f) : false;
+    // 1. Preliminary Cone Check (Distance & Angle)
+    bool canSeePlayer = player ? isEntityInSight(player, 100.0f, 90.0f) : false;
+
+    // 2. Raycast Check
+    // If the simple cone check passes, we must verify NO WALLS exist between them.
+    if (canSeePlayer && map != nullptr)
+    {
+        if (!map->hasLineOfSight(mPosition, player->getPosition()))
+        {
+            canSeePlayer = false; // Blocked by wall -> Player is safe
+        }
+    }
 
     switch (mAIState)
     {
@@ -506,6 +516,20 @@ bool Entity::checkAmbush(Entity* victim)
 // ----------------------------------------------------------------
 // FOLLOWER PHYSICS (Elastic Tether + Personal Space + Jitter + Integration)
 // ----------------------------------------------------------------
+static bool CanPlaceEntityAt(Map* map, Vector2 pos, Vector2 colliderDimensions)
+{
+    if (map == nullptr) return true;
+    float xo = 0.0f, yo = 0.0f;
+    Vector2 topCentre    = { pos.x, pos.y - (colliderDimensions.y / 2.0f) };
+    Vector2 bottomCentre = { pos.x, pos.y + (colliderDimensions.y / 2.0f) };
+    Vector2 leftCentre   = { pos.x - (colliderDimensions.x / 2.0f), pos.y };
+    Vector2 rightCentre  = { pos.x + (colliderDimensions.x / 2.0f), pos.y };
+    if (map->isSolidTileAt(topCentre, &xo, &yo))    return false;
+    if (map->isSolidTileAt(bottomCentre, &xo, &yo)) return false;
+    if (map->isSolidTileAt(leftCentre, &xo, &yo))   return false;
+    if (map->isSolidTileAt(rightCentre, &xo, &yo))  return false;
+    return true;
+}
 void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& followers,
     Map* map, float deltaTime, float tetherSpeed, float repelStrength,
     float jitterStrength, float damping)
@@ -514,28 +538,78 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
 
     Vector2 currentPos = mPosition;
 
+    // Early-out rescue: if follower is far from leader, teleport near leader safely
+    const float TELEPORT_DISTANCE = 300.0f; // significant separation
+    if (Vector2Distance(currentPos, leader->getPosition()) > TELEPORT_DISTANCE)
+    {
+        Vector2 leaderPos = leader->getPosition();
+        float radius = fmaxf(mColliderDimensions.x, mColliderDimensions.y) + 8.0f; // small buffer
+
+        // Preferred spot is behind the leader relative to facing
+        Vector2 behind = Vector2Scale(leader->getDirectionVector(), -1.0f);
+
+        // Candidate offset directions (unit-ish), ordered by preference
+        std::vector<Vector2> dirs = {
+            behind,
+            { 1.0f,  0.0f}, {-1.0f,  0.0f}, { 0.0f,  1.0f}, { 0.0f, -1.0f},
+            { 1.0f,  1.0f}, {-1.0f,  1.0f}, { 1.0f, -1.0f}, {-1.0f, -1.0f},
+            { 0.0f,  0.0f}
+        };
+
+        Vector2 chosenPos = leaderPos; // fallback
+        bool placed = false;
+        for (const Vector2& d : dirs)
+        {
+            Vector2 dir = (Vector2Length(d) > 0.0f) ? Vector2Normalize(d) : d;
+            Vector2 candidate = Vector2Add(leaderPos, Vector2Scale(dir, radius));
+            if (CanPlaceEntityAt(map, candidate, mColliderDimensions)) { chosenPos = candidate; placed = true; break; }
+        }
+
+        // Teleport and reset motion; also refresh breadcrumb
+        mPosition = chosenPos;
+        mVelocity = {0.0f, 0.0f};
+        mMovement = {0.0f, 0.0f};
+        resetColliderFlags();
+        mPositionHistory.clear();
+        mPositionHistory.push_front(mPosition);
+
+        // No further physics this frame
+        return;
+    }
+
     // A. TETHER FORCE (Attraction to past leader position for smoother path)
     Vector2 targetPos;
-    auto& history = leader->getPositionHistory();
+    const std::deque<Vector2>& history = leader->getPositionHistory();
     if (history.size() > 5) targetPos = history[5];
     else targetPos = leader->getPosition();
     Vector2 tether = Vector2Scale(Vector2Subtract(targetPos, currentPos), tetherSpeed);
 
     // B. SEPARATION FORCE (Inverse-square repulsion)
     Vector2 separation = {0.0f, 0.0f};
-    auto accumulateRepel = [&](Entity* neighbor){
-        if (!neighbor || neighbor == this) return;
+    // Repel from leader
+    if (leader != nullptr && leader != this) {
+        float dist = Vector2Distance(currentPos, leader->getPosition());
+        if (dist < 30.0f) {
+            if (dist < 1.0f) dist = 1.0f;
+            Vector2 pushDir = Vector2Subtract(currentPos, leader->getPosition());
+            if (Vector2Length(pushDir) > 0.0f) pushDir = Vector2Normalize(pushDir);
+            float scale = repelStrength / (dist * dist);
+            separation = Vector2Add(separation, Vector2Scale(pushDir, scale));
+        }
+    }
+    // Repel from other followers
+    for (size_t i = 0; i < followers.size(); ++i) {
+        Entity* neighbor = followers[i];
+        if (neighbor == nullptr || neighbor == this) continue;
         float dist = Vector2Distance(currentPos, neighbor->getPosition());
         if (dist < 30.0f) {
-            if (dist < 1.0f) dist = 1.0f; // Clamp
+            if (dist < 1.0f) dist = 1.0f;
             Vector2 pushDir = Vector2Subtract(currentPos, neighbor->getPosition());
             if (Vector2Length(pushDir) > 0.0f) pushDir = Vector2Normalize(pushDir);
             float scale = repelStrength / (dist * dist);
             separation = Vector2Add(separation, Vector2Scale(pushDir, scale));
         }
-    };
-    accumulateRepel(leader);
-    for (Entity* f : followers) accumulateRepel(f);
+    }
 
     // C. IDLE JITTER (Ambient life)
     Vector2 jitter = {0.0f, 0.0f};
