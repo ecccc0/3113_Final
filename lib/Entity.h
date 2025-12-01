@@ -27,7 +27,7 @@ private:
     Vector2 mPosition;
     Vector2 mMovement;
     Vector2 mVelocity;
-    Vector2 mAcceleration; // Kept for friction/sliding effects, but no longer used for gravity
+    Vector2 mAcceleration; 
 
     Vector2 mScale;
     Vector2 mColliderDimensions;
@@ -44,7 +44,6 @@ private:
     int mCurrentFrameIndex = 0;
     float mAnimationTime = 0.0f;
 
-    // REMOVED: Jump variables (mIsJumping, mJumpingPower) - Not needed for Top-Down
 
     int mSpeed;
     float mAngle;
@@ -83,9 +82,7 @@ private:
     }
 
     void animate(float deltaTime);
-    void AIActivate(Entity *target);
-    void AIWander();
-    void AIFollow(Entity *target);
+
     // Phase 2 AI Core
     void aiExecute(Entity* player, Map* map, float deltaTime);
     void aiGuard(Entity* player, Map* map, float deltaTime);

@@ -37,6 +37,7 @@ public:
     void build();
     void render();
     bool isSolidTileAt(Vector2 position, float *xOverlap, float *yOverlap);
+    bool hasLineOfSight(Vector2 start, Vector2 end);
 
     // Helpers for coordinate conversion and indexing
     int getTileIndex(int x, int y);

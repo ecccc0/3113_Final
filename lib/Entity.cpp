@@ -246,6 +246,25 @@ void Entity::aiPatrol(float deltaTime)
             mPatrolTarget = temp;
             mAIState = IDLE;
             mMovement = {0.0f, 0.0f};
+            // flip direction. left to right or up to down
+            switch (mDirection)
+            {
+            case LEFT:
+                mDirection = RIGHT;
+                break;
+            case RIGHT:
+                mDirection = LEFT;
+                break;
+            case UP:
+                mDirection = DOWN;
+                break;
+            case DOWN:
+                mDirection = UP;
+                break;
+            default:
+                break;
+            }
+            
         }
     }
 }

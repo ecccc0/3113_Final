@@ -2,21 +2,32 @@
 #include <cmath> // atan2f for debug cone rendering
 
 // --- LEVEL DATA ---
-// 1 = Wall (Solid), 0 = Floor (Passable)
-// This is a 14x10 room for the prototype
+
 unsigned int LEVEL_1_DATA[] =
 {
-    // 1 = Wall, 2 = Floor (Index 0 is nothing/transparent)
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    // 1 = Wall, 2 = Floor, 0 = nothing/transparent
+    // Expanded to 20x20 (was 14x10), with a cross wall in the center
+
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 };
 
 // Defeated enemies are tracked per scene in mGameState.defeatedEnemies now.
@@ -44,7 +55,7 @@ void LevelOne::initialise()
         delete mGameState.map;
         mGameState.map = nullptr;
     }
-    mGameState.map = new Map(14, 10, LEVEL_1_DATA, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
+    mGameState.map = new Map(20, 20, LEVEL_1_DATA, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
 
     // 2. CREATE PLAYER (preserve if already exists?) For prototype recreate.
     if (mGameState.player) {
@@ -103,7 +114,8 @@ void LevelOne::initialise()
         // Initialise patrol route (simple horizontal ping-pong)
         Vector2 startPos = mGameState.worldEnemies[0].getPosition();
         mGameState.worldEnemies[0].setStartPosition(startPos);
-        mGameState.worldEnemies[0].setPatrolTarget({ startPos.x + 80.0f, startPos.y });
+        mGameState.worldEnemies[0].setPatrolTarget({ startPos.x, startPos.y + 80.0f });
+        mGameState.worldEnemies[0].setDirection(DOWN);
         mGameState.worldEnemies[0].setSpeed(80);
     } else {
         mGameState.enemyCount = 0;
@@ -157,9 +169,13 @@ void LevelOne::update(float deltaTime)
         bool inSight = enemy->isEntityInSight(player, SIGHT_DISTANCE, SIGHT_ANGLE);
         // Optional: line-of-sight check via map raycast (commented placeholder)
         // if (inSight && mGameState.map && !mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) inSight = false;
+        if (inSight && mGameState.map) {
+             if (!mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) {
+                 inSight = false;
+             }
+        }
         if (inSight) {
             isSpotted = true;
-            // Enemy spots the player: begin chase for enemy advantage on contact
             enemy->setAIState(CHASING);
         }
 
