@@ -100,21 +100,14 @@ void Entity::checkCollisionY(Map *map)
     if (map == nullptr) return;
 
     Vector2 topCentreProbe    = { mPosition.x, mPosition.y - (mColliderDimensions.y / 2.0f) };
-    Vector2 topLeftProbe      = { mPosition.x - (mColliderDimensions.x / 2.0f), mPosition.y - (mColliderDimensions.y / 2.0f) };
-    Vector2 topRightProbe     = { mPosition.x + (mColliderDimensions.x / 2.0f), mPosition.y - (mColliderDimensions.y / 2.0f) };
-
     Vector2 bottomCentreProbe = { mPosition.x, mPosition.y + (mColliderDimensions.y / 2.0f) };
-    Vector2 bottomLeftProbe   = { mPosition.x - (mColliderDimensions.x / 2.0f), mPosition.y + (mColliderDimensions.y / 2.0f) };
-    Vector2 bottomRightProbe  = { mPosition.x + (mColliderDimensions.x / 2.0f), mPosition.y + (mColliderDimensions.y / 2.0f) };
 
     float xOverlap = 0.0f;
     float yOverlap = 0.0f;
 
     // COLLISION NORTH (Moving Up)
     if (mVelocity.y < 0.0f &&
-        (map->isSolidTileAt(topCentreProbe, &xOverlap, &yOverlap) ||
-         map->isSolidTileAt(topLeftProbe, &xOverlap, &yOverlap)   ||
-         map->isSolidTileAt(topRightProbe, &xOverlap, &yOverlap)))
+        map->isSolidTileAt(topCentreProbe, &xOverlap, &yOverlap))
     {
         mPosition.y += yOverlap; 
         mVelocity.y  = 0.0f;
@@ -123,9 +116,7 @@ void Entity::checkCollisionY(Map *map)
 
     // COLLISION SOUTH (Moving Down)
     if (mVelocity.y > 0.0f && 
-        (map->isSolidTileAt(bottomCentreProbe, &xOverlap, &yOverlap) ||
-         map->isSolidTileAt(bottomLeftProbe, &xOverlap, &yOverlap)   ||
-         map->isSolidTileAt(bottomRightProbe, &xOverlap, &yOverlap)))
+        map->isSolidTileAt(bottomCentreProbe, &xOverlap, &yOverlap))
     {
         mPosition.y -= yOverlap; 
         mVelocity.y  = 0.0f;
@@ -137,29 +128,29 @@ void Entity::checkCollisionX(Map *map)
 {
     if (map == nullptr) return;
 
-    Vector2 leftCentreProbe   = { mPosition.x - (mColliderDimensions.x / 2.0f), mPosition.y };
-    Vector2 rightCentreProbe  = { mPosition.x + (mColliderDimensions.x / 2.0f), mPosition.y };
+    Vector2 leftCentreProbe  = { mPosition.x - (mColliderDimensions.x / 2.0f), mPosition.y };
+    Vector2 rightCentreProbe = { mPosition.x + (mColliderDimensions.x / 2.0f), mPosition.y };
 
     float xOverlap = 0.0f;
     float yOverlap = 0.0f;
 
-    // COLLISION RIGHT
-    if (mVelocity.x > 0.0f && 
-        map->isSolidTileAt(rightCentreProbe, &xOverlap, &yOverlap))
-    {
-        mPosition.x -= xOverlap;
-        mVelocity.x  = 0.0f;
-        mIsCollidingRight = true;
-    }
-
-    // COLLISION LEFT
-    if (mVelocity.x < 0.0f && 
+    // COLLISION WEST (Moving Left)
+    if (mVelocity.x < 0.0f &&
         map->isSolidTileAt(leftCentreProbe, &xOverlap, &yOverlap))
     {
-        mPosition.x += xOverlap;
+        mPosition.x += xOverlap; 
         mVelocity.x  = 0.0f;
         mIsCollidingLeft = true;
     }
+
+    // COLLISION EAST (Moving Right)
+    if (mVelocity.x > 0.0f && 
+        map->isSolidTileAt(rightCentreProbe, &xOverlap, &yOverlap))
+    {
+        mPosition.x -= xOverlap; 
+        mVelocity.x  = 0.0f;
+        mIsCollidingRight = true;
+    } 
 }
 
 bool Entity::isColliding(Entity *other) const 

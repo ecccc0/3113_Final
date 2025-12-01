@@ -120,7 +120,7 @@ void Map::render()
             int idx = getTileIndex(col, row);
             if (idx >= 0 && idx < (int)mTileExplored.size() && !mTileExplored[idx])
             {
-                DrawRectangleRec(destinationArea, Fade(BLACK, 0.9f));
+                DrawRectangleRec(destinationArea, Fade(BLACK, 0.75f));
             }
         }
     }
