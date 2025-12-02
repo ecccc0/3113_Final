@@ -216,8 +216,9 @@ void LevelOne::update(float deltaTime)
         }
     }
 
-    // Potential shader/effect hook: pass isSpotted
-    // mShader.setInt("status", isSpotted ? 1 : 0);
+    if (!isSpotted) {
+        mGameState.shaderStatus = 0; // Normal
+    }
 
     // --- CAMERA FOLLOW ---
     mGameState.camera.target = mGameState.player->getPosition();

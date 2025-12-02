@@ -9,6 +9,7 @@
 enum Element { ELEMENT_NONE, PHYS, GUN, FIRE, ICE, ELEC, WIND, PSI, NUKE, BLESS, CURSE };
 enum GameStatus { TITLE, EXPLORATION, COMBAT, PAUSED, GAME_OVER, WIN };
 enum AppStatus { RUNNING, TERMINATED };
+enum EquipmentType { EQUIP_MELEE, EQUIP_GUN, EQUIP_ARMOR };
 
 // --- STRUCTS ---
 struct Ability {
@@ -19,6 +20,25 @@ struct Ability {
     bool isMagic;   // true = costs SP, false = costs HP
 };
 
+struct Item {
+    std::string name;
+    std::string description;
+    int value;      // Amount to heal
+    bool isSP;      // If true, heals SP. If false, heals HP.
+    bool isRevive;  // If true, revives dead ally
+    bool isBattle;  // If true, can be used in battle
+};
+
+struct Equipment {
+    std::string name;
+    EquipmentType type;
+    int attackPower = 0;
+    int defensePower = 0;
+    int magazineSize = 0; // Only for GUN
+    Element element = ELEMENT_NONE;  // Usually PHYS for melee, GUN for guns
+    std::string description;
+};
+
 struct Combatant {
     int id;
     std::string name;
@@ -27,22 +47,37 @@ struct Combatant {
     // Stats
     int currentHp, maxHp;
     int currentSp, maxSp;
-    int attack;
-    int defense;
+    // Base Stats
+    int baseAttack;
+    int baseDefense;
     int speed;
     
     // State
     bool isAlive = true;
     bool isDown = false;
     bool hasActed = false;
+
+    //Combat Flags
+    bool isGuarding = false;
+    int currentAmmo = 0;
+
+    Equipment meleeWeapon;
+    Equipment gunWeapon;
+    Equipment armor;
+    Equipment accessory;
     
     // Combat Data
     std::vector<Ability> skills;
     std::vector<Element> weaknesses;
+
     
-    // Visuals (Optional for now)
+    // Visuals
     Vector2 position = {0,0}; 
     Color tint = WHITE;
+
+    int getTotalAttack() const { return baseAttack + meleeWeapon.attackPower; }
+    int getTotalGunAttack() const { return baseAttack + gunWeapon.attackPower; } // Guns scale off base stats + gun power
+    int getTotalDefense() const { return baseDefense + armor.defensePower + accessory.defensePower; }
 };
 
 #endif // GAME_TYPES_H

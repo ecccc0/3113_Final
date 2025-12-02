@@ -18,6 +18,8 @@ struct GameState
     std::vector<Combatant> party;
     std::vector<Combatant> battleEnemies;
 
+    std::vector<Item> inventory;
+
     int currentTurnIndex = 0;
     bool isPlayerTurn = true;
     std::string battleLog;

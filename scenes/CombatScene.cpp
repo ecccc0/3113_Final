@@ -1,4 +1,6 @@
 #include "CombatScene.h"
+#include <cmath>
+#include "raymath.h"
 
 // CombatScene should use its own GameState.party rather than the global gParty
 
@@ -31,32 +33,69 @@ void CombatScene::initialise() {
         Combatant shadow1;
         shadow1.name = "Pixie";
         shadow1.maxHp = 80; shadow1.currentHp = 80;
-        shadow1.attack = 10;
+        shadow1.baseAttack = 10; shadow1.baseDefense = 5;
         shadow1.isAlive = true;
         shadow1.weaknesses = { GUN, ICE, CURSE };
         mGameState.battleEnemies.push_back(shadow1);
         Combatant shadow2;
         shadow2.name = "Jack";
         shadow2.maxHp = 120; shadow2.currentHp = 120;
-        shadow2.attack = 15;
+        shadow2.baseAttack = 15; shadow2.baseDefense = 8;
         shadow2.isAlive = true;
         shadow2.weaknesses = { WIND };
         mGameState.battleEnemies.push_back(shadow2);
+
+        // --- LOAD UI ASSETS ---
+        mIconAttack = LoadTexture("assets/ui/icon_attack.png");
+        mIconGun    = LoadTexture("assets/ui/icon_gun.png");
+        mIconSkill  = LoadTexture("assets/ui/icon_skill.png");
+        mIconGuard  = LoadTexture("assets/ui/icon_guard.png");
+        mIconItem   = LoadTexture("assets/ui/icon_item.png");
+        mUiCursor   = LoadTexture("assets/ui/ui_cursor.png");
+
+        // Initialize Rotation
+        mWheelRotation = 0.0f;
+        mSelectedActionIndex = 0;
+
+        // Ammo reset
+        for (auto& member : mGameState.party) {
+            member.currentAmmo = member.gunWeapon.magazineSize;
+            member.isGuarding = false;
+            member.isDown = false;
+            member.hasActed = false;
+        }
+
+        // copy inventory from global to local state
+}
+
+    void CombatScene::shutdown() {
+        // copy inventory and party state back to global
+
+
+        // Unload UI Assets
+        UnloadTexture(mIconAttack);
+        UnloadTexture(mIconGun);
+        UnloadTexture(mIconSkill);
+        UnloadTexture(mIconGuard);
+        UnloadTexture(mIconItem);
+        UnloadTexture(mUiCursor);
     }
 
     void CombatScene::NextTurn() {
         bool foundNext = false;
-
+        // Check for next available party member who hasn't acted
         for (int i = 0; i < mGameState.party.size(); i++) {
             if (mGameState.party[i].isAlive && !mGameState.party[i].hasActed) {
                 mActiveMemberIndex = i;
                 mState = PLAYER_TURN_MAIN;
+                // Reset Guard state
+                mGameState.party[i].isGuarding = false;
                 mLog = mGameState.party[i].name + "'s Turn!";
                 foundNext = true;
                 break;
             }
         }
-
+        // if none found, switch to enemy turn
         if (!foundNext) {
             mState = ENEMY_TURN;
             mActiveEnemyIndex = 0;
@@ -73,8 +112,8 @@ void CombatScene::initialise() {
         bool enemiesAlive = false;
         for (auto& e : mGameState.battleEnemies) if (e.isAlive) enemiesAlive = true;
         if (!enemiesAlive) {
-            mLog = "VICTORY! Press ENTER.";
-            if (IsKeyPressed(KEY_ENTER)) {
+            mLog = "VICTORY! Press SPACE.";
+            if (IsKeyPressed(KEY_SPACE)) {
                 // Mark the engaged enemy (if valid) as defeated in this scene's state
                 if (mGameState.engagedEnemyIndex >= 0) {
                     if (mGameState.defeatedEnemies.size() <= (size_t)mGameState.engagedEnemyIndex)
@@ -104,7 +143,7 @@ void CombatScene::initialise() {
         }
 
         if (mState == HOLD_UP) {
-            if (IsKeyPressed(KEY_Y)) {
+            if (IsKeyPressed(KEY_Y) || IsKeyPressed(KEY_SPACE)) {
                 for (auto& enemy : mGameState.battleEnemies) {
                     enemy.currentHp = 0;
                     enemy.isAlive = false;
@@ -128,7 +167,7 @@ void CombatScene::initialise() {
                     if (partySize > 0) {
                         int targetID = GetRandomValue(0, partySize - 1);
                         if (mGameState.party[targetID].isAlive) {
-                            mGameState.party[targetID].currentHp -= enemy.attack;
+                            mGameState.party[targetID].currentHp -= enemy.baseAttack;
                             mLog = enemy.name + " attacks " + mGameState.party[targetID].name + "!";
                         }
                     }
@@ -147,22 +186,70 @@ void CombatScene::initialise() {
         Combatant& actor = mGameState.party[mActiveMemberIndex];
 
         if (mState == PLAYER_TURN_MAIN) {
-            if (IsKeyPressed(KEY_Z)) {
-                Ability melee = {"Melee", 0, actor.attack, PHYS, false};
-                for (int i = 0; i < mGameState.battleEnemies.size(); i++) {
-                    if (mGameState.battleEnemies[i].isAlive) { mSelectedTargetIndex = i; break; }
+            // Command Wheel rotation via UP/DOWN
+            if (IsKeyPressed(KEY_DOWN)) {
+                mSelectedActionIndex = (mSelectedActionIndex + 1) % 5;
+            }
+            else if (IsKeyPressed(KEY_UP)) {
+                mSelectedActionIndex = (mSelectedActionIndex - 1 + 5) % 5;
+            }
+
+            // Smoothly rotate wheel towards target angle, taking shortest wrap
+            float targetBase = (float)mSelectedActionIndex * -72.0f; // 360/5 = 72
+            // Find equivalent target angle closest to current rotation
+            float turns = roundf((mWheelRotation - targetBase) / 360.0f);
+            float targetRot = targetBase + turns * 360.0f;
+            mWheelRotation = Lerp(mWheelRotation, targetRot, 10.0f * deltaTime);
+
+            // Confirm selection
+            if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_Z)) {
+                switch (mSelectedActionIndex) {
+                    case 0: { // Attack
+                        for (int i = 0; i < mGameState.battleEnemies.size(); i++) {
+                            if (mGameState.battleEnemies[i].isAlive) { mSelectedTargetIndex = i; break; }
+                        }
+                        mSelectedSkillIndex = -1;
+                        mState = PLAYER_TURN_TARGET;
+                        break;
+                    }
+                    case 1: { // Gun
+                        if (actor.currentAmmo > 0) {
+                            mState = PLAYER_TURN_TARGET;
+                            mSelectedSkillIndex = -2; // Gun indicator
+                        }
+                        else {
+                            mLog = "Out of Ammo!";
+                        }
+                        break;
+                    }
+                    case 2: { // Skill
+                        mState = PLAYER_TURN_SKILLS;
+                        mSelectedSkillIndex = 0;
+                        break;
+                    }
+                    case 3: { // Guard
+                        actor.isGuarding = true;
+                        mLog = actor.name + " is Guarding...";
+                        actor.hasActed = true;
+                        mState = ANIMATION_WAIT;
+                        break;
+                    }
+                    case 4: { // Item
+                        if (!mGameState.inventory.empty()) {
+                            mState = PLAYER_TURN_ITEM;
+                            mSelectedSkillIndex = 0; // Reuse skill index for item selection
+                        } else {
+                            mLog = "No items!";
+                        }
+                        break;
+                    }
                 }
-                mSelectedSkillIndex = -1;
-                mState = PLAYER_TURN_TARGET;
-            } else if (IsKeyPressed(KEY_X)) {
-                mState = PLAYER_TURN_SKILLS;
-                mSelectedSkillIndex = 0;
             }
         } else if (mState == PLAYER_TURN_SKILLS) {
             if (IsKeyPressed(KEY_DOWN)) mSelectedSkillIndex = (mSelectedSkillIndex + 1) % actor.skills.size();
             else if (IsKeyPressed(KEY_UP)) mSelectedSkillIndex = (mSelectedSkillIndex - 1 + actor.skills.size()) % actor.skills.size();
 
-            if (IsKeyPressed(KEY_Z)) {
+            if (IsKeyPressed(KEY_Z ) || IsKeyPressed(KEY_SPACE)) {
                 Ability chosenSkill = actor.skills[mSelectedSkillIndex];
                 if (chosenSkill.damage < 0) {
                     // Healing skill - target ally only
@@ -175,7 +262,7 @@ void CombatScene::initialise() {
                     }
                     mState = PLAYER_TURN_TARGET;
                 }
-            } else if (IsKeyPressed(KEY_C)) mState = PLAYER_TURN_MAIN;
+            } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) mState = PLAYER_TURN_MAIN;
         } else if (mState == PLAYER_TURN_TARGET) {
             if (IsKeyPressed(KEY_RIGHT)) mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.battleEnemies.size();
             else if (IsKeyPressed(KEY_LEFT)) mSelectedTargetIndex = (mSelectedTargetIndex - 1 + mGameState.battleEnemies.size()) % mGameState.battleEnemies.size();
@@ -184,16 +271,22 @@ void CombatScene::initialise() {
                 mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.battleEnemies.size();
             }
 
-            if (IsKeyPressed(KEY_Z)) {
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
                 Ability action;
-                if (mSelectedSkillIndex == -1) action = {"Melee", 0, actor.attack, PHYS, false};
-                else action = actor.skills[mSelectedSkillIndex];
-
-                if (action.isMagic) actor.currentSp -= action.cost;
-                else actor.currentHp -= action.cost;
-
+                if (mSelectedSkillIndex == -1) {
+                    action = {"Melee", 0, 0, PHYS, false};
+                }
+                else if (mSelectedSkillIndex == -2) {
+                    action = {"Gun", 0, 0, GUN, false};
+                    actor.currentAmmo--;
+                }
+                else {
+                    action = actor.skills[mSelectedSkillIndex];
+                    if (action.isMagic) actor.currentSp -= action.cost;
+                    else actor.currentHp -= action.cost;
+                }    
                 CheckWeakness(actor, mGameState.battleEnemies[mSelectedTargetIndex], action);
-            } else if (IsKeyPressed(KEY_C)) mState = PLAYER_TURN_MAIN;
+            } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) mState = PLAYER_TURN_MAIN;
         }
         else if (mState == PLAYER_TURN_TARGET_ALLY) 
         {
@@ -222,9 +315,23 @@ void CombatScene::initialise() {
                 actor.hasActed = true; // Healing ends turn (usually doesn't grant 1 More)
                 mState = ANIMATION_WAIT;
             }
-            else if (IsKeyPressed(KEY_C)) 
+            else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) 
             {
                 mState = PLAYER_TURN_SKILLS; // Cancel back to menu
+            }
+        }
+        else if (mState == PLAYER_TURN_ITEM) 
+        {
+            if (IsKeyPressed(KEY_DOWN)) 
+                mSelectedSkillIndex = (mSelectedSkillIndex + 1) % mGameState.inventory.size();
+            if (IsKeyPressed(KEY_UP))   
+                mSelectedSkillIndex = (mSelectedSkillIndex - 1 + mGameState.inventory.size()) % mGameState.inventory.size();
+            if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) 
+                mState = PLAYER_TURN_MAIN; // Cancel back to main
+            // Use Item
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                mState = PLAYER_TURN_TARGET_ALLY;
+                mSelectedTargetIndex = mActiveMemberIndex; // Default to self
             }
         }
         
@@ -232,26 +339,42 @@ void CombatScene::initialise() {
 
     void CombatScene::CheckWeakness(Combatant& attacker, Combatant& defender, Ability skill) {
         bool isWeakness = false;
-        for (Element w : defender.weaknesses) {
-            if (skill.element == w) { isWeakness = true; break; }
+        if (!defender.isGuarding) {
+            for (Element w : defender.weaknesses) {
+                if (skill.element == w) { isWeakness = true; break; }
+            }
         }
 
-        int damage = skill.damage;
-        if (isWeakness) damage = (int)(damage * 1.5f);
+        // calculate damage
+        int attatckPower = skill.damage;
+        
+        // if melee or gun, factor in attacker's stats
+        if (skill.element == PHYS) {
+            attatckPower += attacker.getTotalAttack();
+        } else if (skill.element == GUN) {
+            attatckPower += attacker.getTotalGunAttack();
+        }
 
+        int damage = attatckPower - defender.getTotalDefense();
+        if (damage < 1) damage = 1; // Minimum damage
+        // apply modifiers
+        if (isWeakness) damage = (int)(damage * 1.5f);
+        if (defender.isGuarding) damage = (int) (damage * 0.5f);
+
+        // apply damage
         defender.currentHp -= damage;
         if (defender.currentHp <= 0) {
             defender.currentHp = 0;
             defender.isAlive = false;
             defender.isDown = true;
         }
-
+        // One more mechanics
         if (isWeakness && !defender.isDown && defender.isAlive) {
             defender.isDown = true;
             mLog = "WEAKNESS! 1 More!";
             attacker.hasActed = false;
         } else {
-            mLog = "Hit!";
+            mLog = "Hit! Dealt " + std::to_string(damage) + " damage.";
             attacker.hasActed = true;
         }
         mState = ANIMATION_WAIT;
@@ -294,7 +417,7 @@ void CombatScene::initialise() {
             // Ally heal target highlight (distinct color)
             if (mState == PLAYER_TURN_TARGET_ALLY && mSelectedTargetIndex == i) {
                 DrawRectangleLines(x-14, y-14, 228, 98, SKYBLUE);
-                DrawText("HEAL", x-60, y+20, 20, SKYBLUE);
+                DrawText("HEAL", x+220, y+20, 20, SKYBLUE);
             }
 
             DrawRectangle(x, y, 60, 60, c);
@@ -323,16 +446,17 @@ void CombatScene::initialise() {
             if (enemy.isDown) DrawText("DOWN", x, y+90, 20, SKYBLUE);
         }
 
-        // Bottom UI Panel
-        DrawRectangleLines(0, 500, 1000, 100, WHITE);
-        DrawText(mLog.c_str(), 20, 510, 20, WHITE);
+        // Bottom UI Panel (bottom-right half, shows only mLog)
+        DrawRectangleLines(500, 500, 500, 100, WHITE);
+        DrawText(mLog.c_str(), 520, 510, 20, WHITE);
 
         // Context-aware control & action hints
         Combatant& actor = mGameState.party[mActiveMemberIndex];
 
         if (mState == PLAYER_TURN_MAIN) {
-            DrawText("[Z] Attack   [X] Skill", 500, 510, 20, LIGHTGRAY);
-            DrawText("Select an action.", 500, 535, 18, DARKGRAY);
+            // Move context-aware control & action hints to top-right corner
+            DrawText("[UP/DOWN] Rotate  [Z/SPACE] Select", 650, 20, 18, LIGHTGRAY);
+            DrawText("Select an action.", 650, 45, 18, DARKGRAY);
         }
         else if (mState == PLAYER_TURN_SKILLS) {
             DrawRectangle(600, 100, 240, 240, BLACK);
@@ -356,14 +480,17 @@ void CombatScene::initialise() {
                 }
             }
 
-            DrawText("[UP/DOWN] Navigate", 500, 510, 18, LIGHTGRAY);
-            DrawText("[Z] Confirm  [C] Back", 500, 535, 18, LIGHTGRAY);
+            // Hints in top-right
+            DrawText("[UP/DOWN] Navigate", 650, 20, 18, LIGHTGRAY);
+            DrawText("[Z] Confirm  [C] Back", 650, 45, 18, LIGHTGRAY);
         }
         else if (mState == PLAYER_TURN_TARGET) {
             // Show chosen action details
             Ability chosen;
             if (mSelectedSkillIndex == -1) {
-                chosen = {"Melee", 0, actor.attack, PHYS, false};
+                chosen = {"Melee", 0, actor.getTotalAttack(), PHYS, false};
+            } else if (mSelectedSkillIndex == -2) {
+                chosen = {"Gun", 0, actor.getTotalGunAttack(), GUN, false};
             } else {
                 chosen = actor.skills[mSelectedSkillIndex];
             }
@@ -373,24 +500,77 @@ void CombatScene::initialise() {
             } else {
                 DrawText(TextFormat("Action: %s (Dmg %d, %d %s)", chosen.name.c_str(), chosen.damage, chosen.cost, costType), 20, 535, 18, YELLOW);
             }
-            DrawText("[LEFT/RIGHT] Target", 500, 510, 18, LIGHTGRAY);
-            DrawText("[Z] Confirm  [C] Cancel", 500, 535, 18, LIGHTGRAY);
+            // Hints in top-right
+            DrawText("[LEFT/RIGHT] Target", 650, 20, 18, LIGHTGRAY);
+            DrawText("[Z] Confirm  [C] Cancel", 650, 45, 18, LIGHTGRAY);
         }
         else if (mState == PLAYER_TURN_TARGET_ALLY) {
             Ability chosen = actor.skills[mSelectedSkillIndex];
             const char* costType = chosen.isMagic ? "SP" : "HP";
             DrawText(TextFormat("Healing: %s (Heals %d HP, %d %s)", chosen.name.c_str(), -chosen.damage, chosen.cost, costType), 20, 535, 18, SKYBLUE);
-            DrawText("[UP/DOWN] Select Ally", 500, 510, 18, LIGHTGRAY);
-            DrawText("[Z] Confirm  [C] Cancel", 500, 535, 18, LIGHTGRAY);
+            // Hints in top-right
+            DrawText("[UP/DOWN] Select Ally", 650, 20, 18, LIGHTGRAY);
+            DrawText("[Z] Confirm  [C] Cancel", 650, 45, 18, LIGHTGRAY);
         }
         else if (mState == ENEMY_TURN) {
-            DrawText("Enemy Phase...", 500, 510, 18, DARKGRAY);
+            DrawText("Enemy Phase...", 650, 20, 18, DARKGRAY);
         }
         else if (mState == ANIMATION_WAIT) {
-            DrawText("Resolving action...", 500, 510, 18, DARKGRAY);
+            DrawText("Resolving action...", 650, 20, 18, DARKGRAY);
         }
-
+        else if (mState == PLAYER_TURN_ITEM) {
+            DrawRectangle(600, 100, 300, 300, BLACK);
+            DrawRectangleLines(600, 100, 300, 300, WHITE);
+        
+            for (int i = 0; i < mGameState.inventory.size(); i++) {
+                Color c = (i == mSelectedSkillIndex) ? YELLOW : WHITE;
+                DrawText(mGameState.inventory[i].name.c_str(), 610, 110 + (i*30), 20, c);
+                DrawText(TextFormat("x1"), 850, 110 + (i*30), 20, c);
+            }
+        
+            // Description
+            const Item& item = mGameState.inventory[mSelectedSkillIndex];
+            DrawText(item.description.c_str(), 20, 535, 18, WHITE);
+        }
         if (mState == HOLD_UP) {
             DrawText("HOLD UP! [Y] ALL OUT ATTACK", 300, 300, 30, RED);
+        }
+
+        // --- RENDER COMBAT UI: Command Wheel ---
+        if (mState == PLAYER_TURN_MAIN) {
+            Vector2 center = { 100.0f, 500.0f };
+            float radius = 80.0f;
+            DrawCircleV(center, radius + 10, Fade(RED, 0.5f));
+
+            Texture2D icons[] = { mIconAttack, mIconGun, mIconSkill, mIconGuard, mIconItem };
+            const char* labels[] = { "ATTACK", "GUN", "SKILL", "GUARD", "ITEM" };
+            for (int i = 0; i < 5; i++) {
+                float angleDeg = mWheelRotation + (i * 72.0f);
+                float angleRad = angleDeg * DEG2RAD;
+                Vector2 itemPos = { center.x + cosf(angleRad) * radius, center.y + sinf(angleRad) * radius };
+
+                DrawTexturePro(
+                    icons[i],
+                    { 0, 0, (float)icons[i].width, (float)icons[i].height },
+                    { itemPos.x, itemPos.y, 48, 48 },
+                    { 24, 24 },
+                    0.0f,
+                    (i == mSelectedActionIndex) ? WHITE : GRAY
+                );
+
+                if (i == mSelectedActionIndex) {
+                    DrawText(labels[i], center.x + 100, center.y - 10, 30, WHITE);
+                }
+            }
+        }
+
+        // --- RENDER CURSOR OVER ENEMY DURING TARGETING ---
+        if (mState == PLAYER_TURN_TARGET) {
+            if (mSelectedTargetIndex >= 0 && mSelectedTargetIndex < mGameState.battleEnemies.size()) {
+                float ex = 600 + (mSelectedTargetIndex * 120);
+                float ey = 200;
+                float bounce = sinf(GetTime() * 5.0f) * 10.0f;
+                DrawTexture(mUiCursor, ex + 20, ey - 60 + bounce, WHITE);
+            }
         }
     }
