@@ -1,0 +1,19 @@
+# Build artifacts and binaries
+*.exe
+*.dll
+*.obj
+*.o
+*.pdb
+*.log
+bin/
+build/
+dist/
+
+# IDE/OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.cache
+*.tmp
