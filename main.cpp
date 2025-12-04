@@ -4,6 +4,7 @@
 #include "scenes/LevelOne.h"
 #include "scenes/CombatScene.h"
 #include "lib/ShaderProgram.h"
+#include <iostream>
 
 // --- GLOBALS ---
 constexpr int SCREEN_WIDTH  = 1000;
@@ -23,6 +24,29 @@ std::vector<Item> gInventory;  // Player inventory
 // --- EQUIPMENT GLOBALS ---
 std::vector<Equipment> gOwnedEquipment; // The "Bag" of unequipped items
 int gSelectedEquipSlot = 0; // 0=Melee, 1=Gun, 2=Armor
+
+// --- PERSONA GLOBALS ---
+std::vector<Persona> gOwnedPersonas;
+int gEquippedPersonaIdx = 0; // Index in gOwnedPersonas
+
+// Helper to Apply Persona Stats to Joker
+void EquipPersona(int index) {
+    if (index < 0 || index >= (int)gOwnedPersonas.size()) return;
+    if (gParty.empty()) return; // Safety
+
+    gEquippedPersonaIdx = index;
+    Persona& p = gOwnedPersonas[index];
+    Combatant& joker = gParty[0]; // Joker is always index 0
+
+    // Overwrite Joker's Stats
+    joker.baseAttack  = p.baseAttack;
+    joker.baseDefense = p.baseDefense;
+    joker.speed       = p.speed;
+    joker.skills      = p.skills;
+    joker.weaknesses  = p.weaknesses;
+
+    std::cout << "Equipped Persona: " << p.name << std::endl;
+}
 
 // Global Tracking
 std::vector<std::vector<bool>> gSceneEnemyDefeated; 
@@ -128,6 +152,10 @@ void initialise()
     gParty = INITIAL_PARTY(); 
     gInventory = INITIAL_INVENTORY();
     gOwnedEquipment = INITIAL_EQUIPMENTS();
+    
+    // LOAD PERSONAS & EQUIP STARTING ONE
+    gOwnedPersonas = INITIAL_PERSONAS();
+    EquipPersona(0); // Equip Arsene
     
     // Initialize Audio (Requirement 6)
     InitAudioDevice();
@@ -358,6 +386,21 @@ void processInput()
             }
         }
         
+        // G. PERSONA MENU (Switching)
+        else if (gPauseState == P_PERSONA) {
+            if (!gOwnedPersonas.empty()) {
+                // Navigate List
+                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gOwnedPersonas.size()) % (int)gOwnedPersonas.size();
+                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gOwnedPersonas.size();
+
+                // Equip Selection
+                if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    EquipPersona(gSubMenuSelection);
+                    // PlaySound(gSndEquip);
+                }
+            }
+        }
+
         // H. EQUIP VIEW (Select Slot)
         else if (gPauseState == P_EQUIP_VIEW) {
             // 0=Melee, 1=Gun, 2=Armor
@@ -605,6 +648,63 @@ void render()
                 DrawText(TextFormat("%d%%", (int)(values[i]*100)), 520, y+5, 20, c);
             }
             DrawText("[ESC] Back", 50, 550, 20, GRAY);
+        }
+
+        // 8. PERSONA MENU
+        else if (gPauseState == P_PERSONA) {
+            DrawText("JOKER'S PERSONAS", 50, 50, 40, WHITE);
+            DrawText("Active stats applied to Joker.", 50, 90, 20, GRAY);
+
+            // Left Column: List of Personas
+            for (int i = 0; i < (int)gOwnedPersonas.size(); i++) {
+                int y = 150 + (i * 60);
+                bool isSel = (i == gSubMenuSelection);
+                bool isEquipped = (i == gEquippedPersonaIdx);
+
+                // Highlight Selection
+                if (isSel) DrawText(">", 30, y, 30, RED);
+
+                // Color Logic: White if selected, Gray if not. Yellow if Equipped.
+                Color c = isSel ? WHITE : GRAY;
+                if (isEquipped) c = YELLOW;
+
+                DrawText(gOwnedPersonas[i].name.c_str(), 60, y, 30, c);
+                if (isEquipped) DrawText("[E]", 250, y, 25, YELLOW);
+            }
+
+            if (!gOwnedPersonas.empty()) {
+                // Right Column: Stats Preview of SELECTED Persona
+                Persona& p = gOwnedPersonas[gSubMenuSelection];
+                int statX = 400;
+                int statY = 150;
+
+                DrawText("STATS:", statX, statY, 25, RED);
+                DrawText(TextFormat("Atk: %d", p.baseAttack), statX, statY + 40, 25, WHITE);
+                DrawText(TextFormat("Def: %d", p.baseDefense), statX, statY + 80, 25, WHITE);
+                DrawText(TextFormat("Spd: %d", p.speed), statX, statY + 120, 25, WHITE);
+
+                DrawText("SKILLS:", statX, statY + 180, 25, RED);
+                for(int k=0; k<(int)p.skills.size(); k++) {
+                    DrawText(p.skills[k].name.c_str(), statX, statY + 220 + (k*30), 20, LIGHTGRAY);
+                }
+
+                DrawText("WEAK:", statX, statY + 300, 25, RED);
+                for(int k=0; k<(int)p.weaknesses.size(); k++) {
+                    std::string elemName = "???";
+                    if (p.weaknesses[k] == FIRE) elemName = "Fire";
+                    else if (p.weaknesses[k] == ICE) elemName = "Ice";
+                    else if (p.weaknesses[k] == ELEC) elemName = "Elec";
+                    else if (p.weaknesses[k] == WIND) elemName = "Wind";
+                    else if (p.weaknesses[k] == PHYS) elemName = "Phys";
+                    else if (p.weaknesses[k] == GUN)  elemName = "Gun";
+                    else if (p.weaknesses[k] == BLESS) elemName = "Bless";
+                    else if (p.weaknesses[k] == CURSE) elemName = "Curse";
+                    else if (p.weaknesses[k] == NUKE) elemName = "Nuke";
+                    else if (p.weaknesses[k] == PSI) elemName = "Psi";
+                    DrawText(elemName.c_str(), statX + (k*80), statY + 340, 20, SKYBLUE);
+                }
+            }
+            DrawText("[Z] Equip  [ESC] Back", 50, 550, 20, GRAY);
         }
 
         // 9. EQUIP VIEW (Select Slot)

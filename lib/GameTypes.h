@@ -39,6 +39,19 @@ struct Equipment {
     std::string description;
 };
 
+// Persona data that can be swapped to modify Joker's combat profile
+struct Persona {
+    std::string name;
+    
+    // Stats that this Persona confers to Joker
+    int baseAttack;
+    int baseDefense;
+    int speed;
+    
+    std::vector<Ability> skills;
+    std::vector<Element> weaknesses;
+};
+
 struct Combatant {
     int id;
     std::string name;

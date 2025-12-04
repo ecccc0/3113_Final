@@ -47,6 +47,43 @@ const Equipment WEP_AXE = MakeEquipment("Battle Axe", EQUIP_MELEE, 10, 0, 0, PHY
 const Equipment GUN_LAUNCHER = MakeEquipment("Grenade Launcher", EQUIP_GUN, 15, 0, 1, GUN, "One shot wonder");
 
 // --- PARTY DEFAULTS ---
+// --- PERSONA DATABASE ---
+inline std::vector<Persona> INITIAL_PERSONAS() {
+    std::vector<Persona> list;
+
+    // 1. Arsene (Starter) - High Speed/Attack, Weak to Ice/Bless
+    Persona arsene;
+    arsene.name = "Arsene";
+    arsene.baseAttack = 12; 
+    arsene.baseDefense = 5; 
+    arsene.speed = 14;
+    arsene.skills = { {"Eiha", 4, 20, CURSE, true}, {"Cleave", 6, 25, PHYS, false} };
+    arsene.weaknesses = { ICE, BLESS };
+    list.push_back(arsene);
+
+    // 2. Pixie (Healer) - Low Stats, Good Skills, Weak to Gun/Ice
+    Persona pixie;
+    pixie.name = "Pixie";
+    pixie.baseAttack = 8; 
+    pixie.baseDefense = 4; 
+    pixie.speed = 10;
+    pixie.skills = { {"Zio", 4, 15, ELEC, true}, {"Dia", 3, -30, ELEMENT_NONE, true} };
+    pixie.weaknesses = { GUN, ICE };
+    list.push_back(pixie);
+
+    // 3. Jack Frost (Mage) - Balanced, Weak to Fire
+    Persona jack;
+    jack.name = "Jack Frost";
+    jack.baseAttack = 11; 
+    jack.baseDefense = 8; 
+    jack.speed = 9;
+    jack.skills = { {"Bufu", 4, 25, ICE, true}, {"Mabufu", 10, 20, ICE, true} };
+    jack.weaknesses = { FIRE };
+    list.push_back(jack);
+
+    return list;
+}
+// --- PARTY DEFAULTS ---
 inline std::vector<Combatant> INITIAL_PARTY()
 {
     std::vector<Combatant> party;
