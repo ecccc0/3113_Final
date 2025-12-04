@@ -294,30 +294,66 @@ void CombatScene::initialise() {
             if (IsKeyPressed(KEY_DOWN)) mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.party.size();
             else if (IsKeyPressed(KEY_UP)) mSelectedTargetIndex = (mSelectedTargetIndex - 1 + mGameState.party.size()) % mGameState.party.size();
 
-            if (IsKeyPressed(KEY_Z)) // CONFIRM HEAL
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) // CONFIRM HEAL
             {
                 Combatant& actor = mGameState.party[mActiveMemberIndex];
                 Combatant& target = mGameState.party[mSelectedTargetIndex];
-                Ability& skill = actor.skills[mSelectedSkillIndex];
 
-                // Pay Cost
-                if (skill.isMagic) actor.currentSp -= skill.cost;
-                else actor.currentHp -= skill.cost;
-
-                // Apply Healing (Negative damage * -1 = Positive HP)
-                int healAmount = -skill.damage; 
-                target.currentHp += healAmount;
-                
-                // Cap at Max HP
-                if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
-
-                mLog = "Healed " + target.name + " for " + std::to_string(healAmount) + " HP!";
-                actor.hasActed = true; // Healing ends turn (usually doesn't grant 1 More)
-                mState = ANIMATION_WAIT;
+                if (mSelectedSkillIndex <= -100) {
+                    // Using an item: decode item index from sentinel
+                    int itemIndex = -mSelectedSkillIndex - 100;
+                    if (itemIndex >= 0 && itemIndex < (int)mGameState.inventory.size()) {
+                        Item item = mGameState.inventory[itemIndex];
+                        if (item.isRevive) {
+                            if (!target.isAlive) {
+                                target.isAlive = true;
+                                target.isDown = false;
+                                target.currentHp = item.value;
+                                if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
+                                mLog = "Revived " + target.name + " to " + std::to_string(target.currentHp) + " HP!";
+                            } else {
+                                mLog = target.name + " is already alive.";
+                            }
+                        } else if (item.isSP) {
+                            target.currentSp += item.value;
+                            if (target.currentSp > target.maxSp) target.currentSp = target.maxSp;
+                            mLog = "Restored " + std::to_string(item.value) + " SP to " + target.name + "!";
+                        } else {
+                            target.currentHp += item.value;
+                            if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
+                            mLog = "Healed " + target.name + " for " + std::to_string(item.value) + " HP!";
+                        }
+                        // Consume item
+                        mGameState.inventory.erase(mGameState.inventory.begin() + itemIndex);
+                        actor.hasActed = true;
+                        mState = ANIMATION_WAIT;
+                    } else {
+                        mLog = "Item use canceled.";
+                        mState = PLAYER_TURN_ITEM;
+                    }
+                } else {
+                    // Using a healing skill
+                    Ability& skill = actor.skills[mSelectedSkillIndex];
+                    if (skill.isMagic) actor.currentSp -= skill.cost;
+                    else actor.currentHp -= skill.cost;
+                    int healAmount = -skill.damage; 
+                    target.currentHp += healAmount;
+                    if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
+                    mLog = "Healed " + target.name + " for " + std::to_string(healAmount) + " HP!";
+                    actor.hasActed = true;
+                    mState = ANIMATION_WAIT;
+                }
             }
             else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) 
             {
-                mState = PLAYER_TURN_SKILLS; // Cancel back to menu
+                // Return to correct menu based on origin
+                if (mSelectedSkillIndex <= -100) {
+                    // Reset selection index for items
+                    mSelectedSkillIndex = 0;
+                    mState = PLAYER_TURN_ITEM;
+                } else {
+                    mState = PLAYER_TURN_SKILLS;
+                }
             }
         }
         else if (mState == PLAYER_TURN_ITEM) 
@@ -330,6 +366,8 @@ void CombatScene::initialise() {
                 mState = PLAYER_TURN_MAIN; // Cancel back to main
             // Use Item
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                // Encode the selected item into a negative sentinel to distinguish later
+                mSelectedSkillIndex = -(100 + mSelectedSkillIndex);
                 mState = PLAYER_TURN_TARGET_ALLY;
                 mSelectedTargetIndex = mActiveMemberIndex; // Default to self
             }
@@ -505,9 +543,24 @@ void CombatScene::initialise() {
             DrawText("[Z] Confirm  [C] Cancel", 650, 45, 18, LIGHTGRAY);
         }
         else if (mState == PLAYER_TURN_TARGET_ALLY) {
-            Ability chosen = actor.skills[mSelectedSkillIndex];
-            const char* costType = chosen.isMagic ? "SP" : "HP";
-            DrawText(TextFormat("Healing: %s (Heals %d HP, %d %s)", chosen.name.c_str(), -chosen.damage, chosen.cost, costType), 20, 535, 18, SKYBLUE);
+            // Show context based on whether we're using a skill or an item
+            if (mSelectedSkillIndex <= -100) {
+                int itemIndex = -mSelectedSkillIndex - 100;
+                if (itemIndex >= 0 && itemIndex < (int)mGameState.inventory.size()) {
+                    const Item& item = mGameState.inventory[itemIndex];
+                    if (item.isRevive) {
+                        DrawText(TextFormat("Item: %s (Revive to %d HP)", item.name.c_str(), item.value), 20, 535, 18, SKYBLUE);
+                    } else if (item.isSP) {
+                        DrawText(TextFormat("Item: %s (Restore %d SP)", item.name.c_str(), item.value), 20, 535, 18, SKYBLUE);
+                    } else {
+                        DrawText(TextFormat("Item: %s (Heal %d HP)", item.name.c_str(), item.value), 20, 535, 18, SKYBLUE);
+                    }
+                }
+            } else {
+                Ability chosen = actor.skills[mSelectedSkillIndex];
+                const char* costType = chosen.isMagic ? "SP" : "HP";
+                DrawText(TextFormat("Healing: %s (Heals %d HP, %d %s)", chosen.name.c_str(), -chosen.damage, chosen.cost, costType), 20, 535, 18, SKYBLUE);
+            }
             // Hints in top-right
             DrawText("[UP/DOWN] Select Ally", 650, 20, 18, LIGHTGRAY);
             DrawText("[Z] Confirm  [C] Cancel", 650, 45, 18, LIGHTGRAY);

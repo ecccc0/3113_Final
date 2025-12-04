@@ -58,7 +58,7 @@ void initialise()
     gParty = INITIAL_PARTY(); 
     gInventory = INITIAL_INVENTORY();
     
-    // Initialize Audio (Requirement 6) [cite: 45]
+    // Initialize Audio (Requirement 6)
     InitAudioDevice();
 
     gShader.load("shaders/vertex.glsl", "shaders/fragment.glsl");
