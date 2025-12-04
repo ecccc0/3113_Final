@@ -26,6 +26,61 @@ std::vector<std::vector<bool>> gSceneEnemyDefeated;
 
 ShaderProgram gShader;
 
+// --- PAUSE MENU GLOBALS ---
+enum PauseState {
+    P_MAIN,
+    P_PARTY_SELECT, // For choosing who to view (Skill/Equip)
+    P_SKILL_LIST,
+    P_SKILL_TARGET_ALLY, // NEW: For selecting who to heal
+    P_EQUIP_VIEW,
+    P_PERSONA,      // Joker only
+    P_SYSTEM,
+    P_AUDIO_SETTINGS     // NEW: Sliders
+};
+
+PauseState gPauseState = P_MAIN;
+
+// Selection Variables
+int gMenuSelection = 0;      // Generic selection index (Main Menu)
+int gSubMenuSelection = 0;   // Selection for Lists (Party/Skills)
+int gSelectedMemberIdx = 0;  // Which party member was chosen?
+int gSelectedSkillIdx = -1;  // Tracks the specific skill chosen from the list
+
+// Legacy pause helpers used during transition
+int gPauseMenuSelection = 0; // 0=Skill, 1=Equip, 2=Persona, 3=System
+bool gInSubMenu = false;
+std::string gSubMenuMessage = ""; // Text to show in the sub-menu
+bool gPauseJustOpened = false;     // Prevent immediate ESC unpause on same frame
+
+// Volume Settings (0.0f to 1.0f)
+float gMasterVolume = 1.0f;
+float gMusicVolume  = 0.8f;
+float gSFXVolume    = 0.8f;
+
+// Aliases requested: lowercase variants used in settings
+float gmusicvolume  = 0.8f;
+float gsfxvolume    = 0.8f;
+
+// Helper to reset menu state when opening
+void OpenPauseMenu() {
+    gGameStatus = PAUSED;
+    gPauseState = P_MAIN;
+    gMenuSelection = 0;
+    gPauseJustOpened = true;
+}
+
+// Helper to filter healing skills
+// Returns a list of indices into the original skills vector
+std::vector<int> GetHealingSkillIndices(const Combatant& c) {
+    std::vector<int> indices;
+    for (int i = 0; i < (int)c.skills.size(); i++) {
+        if (c.skills[i].damage < 0) { // Negative damage = Healing
+            indices.push_back(i);
+        }
+    }
+    return indices;
+}
+
 
 void switchToScene(int sceneIndex);
 void initialise();
@@ -70,6 +125,12 @@ void initialise()
 void processInput() 
 {
     if ( WindowShouldClose()) gAppStatus = TERMINATED;
+    // Enter pause menu with ESC from exploration
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        if (gGameStatus == EXPLORATION) {
+            OpenPauseMenu();
+        }
+    }
     if (gGameStatus == EXPLORATION) {
         // Reset movement each frame so entity only moves while keys are down
         gCurrentScene->getState().player->resetMovement();
@@ -85,6 +146,7 @@ void processInput()
             gCurrentScene->getState().player->normaliseMovement();
         }
     }
+    
     else if  ( gGameStatus == GAME_OVER) {
         if (IsKeyPressed(KEY_R)) {
             gCurrentScene->shutdown();
@@ -94,6 +156,194 @@ void processInput()
         }
     }
 
+    // PAUSED input: extended navigation (Skills -> Target Ally, System -> Audio)
+    if (gGameStatus == PAUSED) 
+    {
+        // --- 1. BACK / CANCEL LOGIC ---
+        if (!gPauseJustOpened && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_C))) {
+            // PlaySound(gSndBack);
+            switch (gPauseState) {
+                case P_SKILL_TARGET_ALLY:
+                    gPauseState = P_SKILL_LIST; // Cancel targeting, return to list
+                    break;
+                case P_SKILL_LIST:
+                case P_EQUIP_VIEW:
+                    gPauseState = P_PARTY_SELECT; 
+                    gSubMenuSelection = gSelectedMemberIdx; 
+                    break;
+                case P_AUDIO_SETTINGS:
+                    gPauseState = P_SYSTEM;
+                    gSubMenuSelection = 0; // Highlight "Audio Settings"
+                    break;
+                case P_PARTY_SELECT:
+                case P_PERSONA:
+                case P_SYSTEM:
+                    gPauseState = P_MAIN; 
+                    break;
+                case P_MAIN:
+                    gGameStatus = EXPLORATION; 
+                    gPreviousTicks = (float) GetTime();
+                    break;
+            }
+            return; // Skip other input this frame
+        }
+
+        // --- 2. NAVIGATION & INTERACTION ---
+        
+        // A. MAIN MENU
+        if (gPauseState == P_MAIN) {
+            if (IsKeyPressed(KEY_UP))   gMenuSelection = (gMenuSelection - 1 + 4) % 4;
+            if (IsKeyPressed(KEY_DOWN)) gMenuSelection = (gMenuSelection + 1) % 4;
+            
+            if (!gPauseJustOpened && (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER))) {
+                // PlaySound(gSndSelect);
+                if (gMenuSelection == 0) { // SKILL
+                    gPauseState = P_PARTY_SELECT;
+                    gSubMenuSelection = 0;
+                }
+                else if (gMenuSelection == 1) { // EQUIP (Ignore)
+                     gPauseState = P_PARTY_SELECT;
+                     gSubMenuSelection = 0;
+                }
+                else if (gMenuSelection == 2) { // PERSONA (Ignore)
+                    gPauseState = P_PERSONA;
+                }
+                else if (gMenuSelection == 3) { // SYSTEM
+                    gPauseState = P_SYSTEM;
+                    gSubMenuSelection = 0;
+                }
+            }
+        }
+
+        // B. PARTY SELECTION (Shared for SKILL & EQUIP)
+        else if (gPauseState == P_PARTY_SELECT) {
+            if (!gParty.empty()) {
+                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size();
+                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size();
+            }
+
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                gSelectedMemberIdx = gSubMenuSelection;
+                if (gMenuSelection == 0) { // SKILL
+                    gPauseState = P_SKILL_LIST;
+                    gSubMenuSelection = 0; 
+                } 
+                else { // EQUIP (Placeholder)
+                    gPauseState = P_EQUIP_VIEW;
+                }
+            }
+        }
+
+        // C. SKILL LIST (Healing Only)
+        else if (gPauseState == P_SKILL_LIST) {
+            Combatant& actor = gParty[gSelectedMemberIdx];
+            std::vector<int> healIndices = GetHealingSkillIndices(actor);
+
+            if (!healIndices.empty()) {
+                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)healIndices.size()) % (int)healIndices.size();
+                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)healIndices.size();
+
+                // SELECT SKILL -> GO TO TARGETING
+                if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    gSelectedSkillIdx = healIndices[gSubMenuSelection]; // Store actual index
+                    Ability& skill = actor.skills[gSelectedSkillIdx];
+
+                    // Check Cost
+                    bool canCast = skill.isMagic ? (actor.currentSp >= skill.cost) : (actor.currentHp > skill.cost);
+                    
+                    if (canCast) {
+                        gPauseState = P_SKILL_TARGET_ALLY;
+                        gSubMenuSelection = gSelectedMemberIdx; // Default target = Self
+                    } else {
+                        // PlaySound(gSndError); // Optional: Feedback for low SP
+                    }
+                }
+            }
+        }
+
+        // D. SKILL TARGETING (Apply the Heal)
+        else if (gPauseState == P_SKILL_TARGET_ALLY) {
+            if (!gParty.empty()) {
+                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size();
+                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size();
+            }
+
+            // CONFIRM HEAL
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                Combatant& actor = gParty[gSelectedMemberIdx];
+                Combatant& target = gParty[gSubMenuSelection];
+                Ability& skill = actor.skills[gSelectedSkillIdx];
+
+                // Deduct Cost
+                if (skill.isMagic) actor.currentSp -= skill.cost;
+                else actor.currentHp -= skill.cost;
+
+                // Apply Heal (Negative damage * -1)
+                int amount = -skill.damage;
+                target.currentHp += amount;
+                if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
+
+                // PlaySound(gSndHeal); // Audio Feedback
+                
+                // Return to list or stay? Usually return to list.
+                gPauseState = P_SKILL_LIST;
+                gSubMenuSelection = 0; // Reset cursor or keep it
+            }
+        }
+
+        // E. SYSTEM MENU
+        else if (gPauseState == P_SYSTEM) {
+            // Options: 0: Audio, 1: Quit
+            if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + 2) % 2;
+            if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % 2;
+
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                if (gSubMenuSelection == 0) {
+                    gPauseState = P_AUDIO_SETTINGS;
+                    gSubMenuSelection = 0; // Reset to Master Volume
+                } else {
+                    gAppStatus = TERMINATED;
+                }
+            }
+        }
+
+        // F. AUDIO SETTINGS
+        else if (gPauseState == P_AUDIO_SETTINGS) {
+            // 0: Master, 1: Music, 2: SFX
+            if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + 3) % 3;
+            if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % 3;
+
+            // Adjust Volume
+            float* targetVol = nullptr;
+            if (gSubMenuSelection == 0) {
+                targetVol = &gMasterVolume;
+            } else if (gSubMenuSelection == 1) {
+                targetVol = &gmusicvolume;
+            } else if (gSubMenuSelection == 2) {
+                targetVol = &gsfxvolume;
+            }
+
+            if (targetVol) {
+                if (IsKeyDown(KEY_LEFT))  *targetVol -= 0.01f;
+                if (IsKeyDown(KEY_RIGHT)) *targetVol += 0.01f;
+                
+                // Clamp
+                if (*targetVol < 0.0f) *targetVol = 0.0f;
+                if (*targetVol > 1.0f) *targetVol = 1.0f;
+
+                // Apply Master immediately (others are used when playing sounds)
+                // Apply Master immediately
+                if (gSubMenuSelection == 0) {
+                    SetMasterVolume(gMasterVolume);
+                }
+                // Mirror lowercase values into canonical globals for use elsewhere
+                gMusicVolume = gmusicvolume;
+                gSFXVolume   = gsfxvolume;
+            }
+        }
+        gPauseJustOpened = false; // Reset after first frame
+    }
+
     // Combat input is handled within CombatScene itself
     // menu scene not implemented yet
 }
@@ -101,12 +351,14 @@ void processInput()
 
 void update() 
 {
-    // UpdateMusicStream(gBGM);
-    float ticks = (float) GetTime();
-    float deltaTime = ticks - gPreviousTicks;
-    gPreviousTicks  = ticks;
+    // Keep music updating if desired; world updates only when not paused
+    if (gGameStatus != PAUSED) {
+        float ticks = (float) GetTime();
+        float deltaTime = ticks - gPreviousTicks;
+        gPreviousTicks  = ticks;
 
-    gCurrentScene->update(deltaTime);
+        gCurrentScene->update(deltaTime);
+    }
 }
 
 void render()
@@ -115,8 +367,8 @@ void render()
     
     ClearBackground(BLACK);
 
-    // 1. EXPLORATION: Draw World + Party HUD
-    if (gGameStatus == EXPLORATION)
+    // 1. EXPLORATION/PAUSED: Draw World + Party HUD with camera
+    if (gGameStatus == EXPLORATION || gGameStatus == PAUSED)
     {
         gShader.begin();
 
@@ -170,6 +422,117 @@ void render()
     {
         // These scenes handle their own screen-space positioning
         gCurrentScene->render();
+    }
+
+    // PAUSED Overlay and Menu (rendered on top of scene)
+    if (gGameStatus == PAUSED) 
+    {
+        // 1. DARK OVERLAY
+        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.9f));
+
+        // 2. MAIN MENU (Right-side alignment without shape)
+        if (gPauseState == P_MAIN) {
+            const char* options[] = { "SKILL", "EQUIP", "PERSONA", "SYSTEM" };
+            for (int i = 0; i < 4; i++) {
+                int x = 700 - (i * 20);
+                int y = 150 + (i * 70);
+                Color col = (i == gMenuSelection) ? WHITE : GRAY;
+                if (i == gMenuSelection) {
+                    DrawTriangle({(float)x-30, (float)y+20}, {(float)x-15, (float)y+5}, {(float)x-15, (float)y+35}, RED);
+                }
+                DrawText(options[i], x, y, 40, col);
+            }
+        }
+
+        // 3. PARTY SELECTION (Used for SKILL & EQUIP entry)
+        else if (gPauseState == P_PARTY_SELECT) {
+            DrawText("SELECT PARTY MEMBER", 50, 50, 30, WHITE);
+            for (int i = 0; i < (int)gParty.size(); i++) {
+                int x = 100 + (i * 40);
+                int y = 150 + (i * 80);
+                bool isSel = (i == gSubMenuSelection);
+                DrawRectangle(x, y, 350, 70, isSel ? DARKGRAY : BLACK);
+                DrawRectangleLines(x, y, 350, 70, isSel ? RED : DARKGRAY);
+                DrawText(gParty[i].name.c_str(), x + 20, y + 20, 30, WHITE);
+                DrawText(TextFormat("HP %d/%d", gParty[i].currentHp, gParty[i].maxHp), x + 160, y + 15, 20, GREEN);
+                DrawText(TextFormat("SP %d/%d", gParty[i].currentSp, gParty[i].maxSp), x + 160, y + 40, 20, SKYBLUE);
+            }
+        }
+
+        // 4. SKILL LIST (Healing Only)
+        else if (gPauseState == P_SKILL_LIST) {
+            Combatant& c = gParty[gSelectedMemberIdx];
+            std::vector<int> healIndices = GetHealingSkillIndices(c);
+
+            DrawText(TextFormat("HEALING: %s", c.name.c_str()), 50, 50, 40, WHITE);
+            DrawText(TextFormat("SP: %d", c.currentSp), 500, 60, 30, SKYBLUE);
+
+            if (healIndices.empty()) {
+                DrawText("No Healing Skills.", 100, 200, 30, GRAY);
+            } else {
+                for (int i = 0; i < (int)healIndices.size(); i++) {
+                    int realIdx = healIndices[i];
+                    Ability& s = c.skills[realIdx];
+                    int y = 150 + (i * 60);
+                    bool isSel = (i == gSubMenuSelection);
+                    Color col = isSel ? WHITE : LIGHTGRAY;
+                    if (isSel) DrawText(">", 60, y, 30, RED);
+                    DrawText(s.name.c_str(), 100, y, 30, col);
+                    DrawText(TextFormat("%d SP", s.cost), 300, y+5, 20, SKYBLUE);
+                    DrawText(TextFormat("Heals %d", -s.damage), 400, y+5, 20, GREEN);
+                }
+            }
+            DrawText("[Z] Use  [ESC] Back", 50, 550, 20, GRAY);
+        }
+
+        // 5. SKILL TARGETING (Overlay on top of Party List)
+        else if (gPauseState == P_SKILL_TARGET_ALLY) {
+            DrawText("SELECT TARGET", 50, 50, 30, GREEN);
+            for (int i = 0; i < (int)gParty.size(); i++) {
+                int x = 100 + (i * 40);
+                int y = 150 + (i * 80);
+                bool isTarget = (i == gSubMenuSelection);
+                Color bg = isTarget ? Fade(GREEN, 0.2f) : BLACK;
+                DrawRectangle(x, y, 350, 70, bg);
+                DrawRectangleLines(x, y, 350, 70, isTarget ? GREEN : DARKGRAY);
+                DrawText(gParty[i].name.c_str(), x + 20, y + 20, 30, WHITE);
+                DrawText(TextFormat("HP %d/%d", gParty[i].currentHp, gParty[i].maxHp), x + 160, y + 25, 20, GREEN);
+                if (isTarget) DrawText("HEAL", x + 280, y + 25, 20, GREEN);
+            }
+        }
+
+        // 6. SYSTEM MENU
+        else if (gPauseState == P_SYSTEM) {
+            DrawText("SYSTEM", 50, 50, 40, WHITE);
+            const char* sysOps[] = { "Audio Settings", "Quit to Title" };
+            for (int i = 0; i < 2; i++) {
+                int y = 200 + (i*60);
+                bool isSel = (i == gSubMenuSelection);
+                DrawText(sysOps[i], 100, y, 30, isSel ? WHITE : GRAY);
+                if (isSel) DrawText(">", 70, y, 30, RED);
+            }
+        }
+
+        // 7. AUDIO SETTINGS
+        else if (gPauseState == P_AUDIO_SETTINGS) {
+            DrawText("AUDIO SETTINGS", 50, 50, 40, WHITE);
+            DrawText("[UP/DOWN] Select   [LEFT/RIGHT] Adjust", 50, 100, 20, GRAY);
+
+            const char* labels[] = { "Master Volume", "Music Volume", "SFX Volume" };
+            float values[] = { gMasterVolume, gMusicVolume, gSFXVolume };
+
+            for (int i = 0; i < 3; i++) {
+                int y = 200 + (i * 80);
+                bool isSel = (i == gSubMenuSelection);
+                Color c = isSel ? WHITE : GRAY;
+                DrawText(labels[i], 100, y, 25, c);
+                if (isSel) DrawText(">", 70, y, 25, RED);
+                DrawRectangleLines(300, y + 5, 200, 20, c);
+                DrawRectangle(302, y + 7, (int)(values[i] * 196), 16, isSel ? RED : DARKGRAY);
+                DrawText(TextFormat("%d%%", (int)(values[i]*100)), 520, y+5, 20, c);
+            }
+            DrawText("[ESC] Back", 50, 550, 20, GRAY);
+        }
     }
 
     EndDrawing();
