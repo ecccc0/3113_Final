@@ -1,4 +1,5 @@
 #include "LevelOne.h"
+#include "../lib/Effects.h" // Include full definition here
 #include <cmath> // atan2f for debug cone rendering
 
 // --- LEVEL DATA ---
@@ -127,10 +128,39 @@ void LevelOne::initialise()
     mGameState.camera.offset = mOrigin;
     mGameState.camera.rotation = 0.0f;
     mGameState.camera.zoom = 2.0f;
+
+    // --- 5. INITIALISE EFFECTS ---
+    // Initialize Effects with screen dimensions (1000x600)
+    if (mEffects) delete mEffects;
+    mEffects = new Effects(mOrigin, 1000.0f, 600.0f);
+    mEffects->setEffectSpeed(2.0f); // Fast Fade (0.5 seconds)
+
+    mIsTransitioning = false;
 }
 
 void LevelOne::update(float deltaTime)
 {
+    // --- 1. HANDLE TRANSITION SEQUENCE ---
+    if (mIsTransitioning)
+    {
+        // A. Update Effect (Fade Out)
+        // Pass camera target as view offset so overlay stays centered on screen
+        Vector2 camTarget = mGameState.camera.target;
+        if (mEffects) mEffects->update(deltaTime, &camTarget);
+
+        // B. Zoom In Camera
+        mGameState.camera.zoom += 2.0f * deltaTime; // Zoom speed
+        if (mGameState.camera.zoom > mTargetZoom) mGameState.camera.zoom = mTargetZoom;
+
+        // C. Check Completion
+        // If alpha is fully solid (Black), switch scene
+        if (mEffects && mEffects->getAlpha() >= Effects::SOLID) {
+             mGameState.nextSceneID = 2; // Switch to Combat
+        }
+        return; // Block other updates (Movement/Input) during transition
+    }
+
+    // --- 2. STANDARD UPDATE (Keep existing logic) ---
     // --- PLAYER UPDATE & MAP INTERACTION ---
     mGameState.player->update(deltaTime, mGameState.player, mGameState.map, NULL, 0);
     if (mGameState.map && mGameState.player)
@@ -191,27 +221,30 @@ void LevelOne::update(float deltaTime)
             float distToEnemy = Vector2Distance(player->getPosition(), enemy->getPosition());
             if (distToEnemy < AMBUSH_DISTANCE) {
                 if (player->checkAmbush(enemy)) {
-                    std::cout << "AMBUSH SUCCESS!" << std::endl;
-                    mGameState.nextSceneID       = 2; // CombatScene
+                    std::cout << "AMBUSH SUCCESS! Transitioning..." << std::endl;
+                    // START TRANSITION
+                    mIsTransitioning = true;
+                    if (mEffects) mEffects->start(FADEOUT);
+                    // Set State for next scene (but don't switch ID yet)
                     mGameState.engagedEnemyIndex = i;
                     mGameState.returnSceneID     = gCurrentLevelIndex;
-                    // Player initiated combat with successful ambush
                     mGameState.combatAdvantage   = true;
-                    return; // Early transition
+                    return; 
                 }
             }
         }
 
         // C. Collision Trigger
         if (player->isColliding(enemy)) {
-            mGameState.nextSceneID       = 2; // Combat Scene
+            std::cout << "COLLISION! Transitioning..." << std::endl;
+            // START TRANSITION
+            mIsTransitioning = true;
+            if (mEffects) mEffects->start(FADEOUT);
             mGameState.engagedEnemyIndex = i;
             mGameState.returnSceneID     = gCurrentLevelIndex;
-
             if (enemy->getAIState() == CHASING) {
-                std::cout << "Combat Start: SURPRISE ATTACK (Enemy Turn 1st)" << std::endl;
-                mGameState.combatAdvantage = false; // enemy advantage
-            } 
+                mGameState.combatAdvantage = false;
+            }
             return;
         }
     }
@@ -256,4 +289,7 @@ void LevelOne::render()
         // Draw a 90-degree cone (±45°) with radius matching SIGHT_DISTANCE (200)
         DrawCircleSector(pos, 100.0f, angleDeg - 45.0f, angleDeg + 45.0f, 10, Fade(RED, 0.2f));
     }
+
+    // RENDER EFFECT OVERLAY (Draws black rect over camera view)
+    if (mEffects) mEffects->render();
 }

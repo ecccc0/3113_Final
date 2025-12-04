@@ -1,6 +1,7 @@
-#include "../scenes/LevelOne.h"
 #ifndef EFFECTS_H
 #define EFFECTS_H
+ 
+#include "cs3113.h" // for Vector2, Color, DrawRectangle, Fade
 
 enum EffectType { NONE_EFFECT, FADEIN, FADEOUT, SHRINK, GROW };
 

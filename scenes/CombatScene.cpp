@@ -1,4 +1,5 @@
 #include "CombatScene.h"
+#include "../lib/Effects.h"
 #include <cmath>
 #include "raymath.h"
 
@@ -66,6 +67,20 @@ void CombatScene::initialise() {
         }
 
         // copy inventory from global to local state
+
+        // --- INITIALISE EFFECTS ---
+        if (mEffects) delete mEffects;
+        mEffects = new Effects(mOrigin, 1000.0f, 600.0f); // Screen Size
+        mEffects->setEffectSpeed(2.0f); // Fast Fade In
+        mEffects->start(FADEIN); // Start black, fade to transparent
+
+        // --- CAMERA SETUP ---
+        // Start VERY zoomed in for dynamic entry
+        mGameState.camera.zoom = 2.5f; 
+        mGameState.camera.offset = mOrigin;
+        mGameState.camera.rotation = 0.0f;
+        // Center camera roughly on the battle (assuming fixed positions in render)
+        mGameState.camera.target = { 500.0f, 300.0f }; // Center of screen
 }
 
     void CombatScene::shutdown() {
@@ -79,6 +94,7 @@ void CombatScene::initialise() {
         UnloadTexture(mIconGuard);
         UnloadTexture(mIconItem);
         UnloadTexture(mUiCursor);
+        if (mEffects) { delete mEffects; mEffects = nullptr; }
     }
 
     void CombatScene::NextTurn() {
@@ -109,6 +125,19 @@ void CombatScene::initialise() {
     }
 
     void CombatScene::update(float deltaTime) {
+        // --- 1. UPDATE EFFECTS & ZOOM ---
+        if (mEffects) {
+            // Center effect on camera target
+            Vector2 camTarget = mGameState.camera.target;
+            mEffects->update(deltaTime, &camTarget);
+        }
+
+        // Smoothly Zoom Out to 1.0f
+        if (mGameState.camera.zoom > 1.0f) {
+            // "Quicker zoom out" - faster speed than zoom in
+            mGameState.camera.zoom -= 4.0f * deltaTime; 
+            if (mGameState.camera.zoom < 1.0f) mGameState.camera.zoom = 1.0f;
+        }
         bool enemiesAlive = false;
         for (auto& e : mGameState.battleEnemies) if (e.isAlive) enemiesAlive = true;
         if (!enemiesAlive) {
@@ -150,6 +179,7 @@ void CombatScene::initialise() {
                 }
                 mLog = "ALL-OUT ATTACK! It's over!";
                 mState = ANIMATION_WAIT;
+                mTimer = 0.0f;
             }
             return;
         }
@@ -232,6 +262,7 @@ void CombatScene::initialise() {
                         mLog = actor.name + " is Guarding...";
                         actor.hasActed = true;
                         mState = ANIMATION_WAIT;
+                        mTimer = 0.0f;
                         break;
                     }
                     case 4: { // Item
@@ -327,6 +358,7 @@ void CombatScene::initialise() {
                         mGameState.inventory.erase(mGameState.inventory.begin() + itemIndex);
                         actor.hasActed = true;
                         mState = ANIMATION_WAIT;
+                        mTimer = 0.0f;
                     } else {
                         mLog = "Item use canceled.";
                         mState = PLAYER_TURN_ITEM;
@@ -342,6 +374,7 @@ void CombatScene::initialise() {
                     mLog = "Healed " + target.name + " for " + std::to_string(healAmount) + " HP!";
                     actor.hasActed = true;
                     mState = ANIMATION_WAIT;
+                    mTimer = 0.0f;
                 }
             }
             else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) 
@@ -416,6 +449,7 @@ void CombatScene::initialise() {
             attacker.hasActed = true;
         }
         mState = ANIMATION_WAIT;
+        mTimer = 0.0f;
     }
 
     void CombatScene::CheckHoldUp() {
@@ -626,4 +660,6 @@ void CombatScene::initialise() {
                 DrawTexture(mUiCursor, ex + 20, ey - 60 + bounce, WHITE);
             }
         }
+        // --- RENDER EFFECT OVERLAY ---
+        if (mEffects) mEffects->render();
     }

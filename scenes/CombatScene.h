@@ -2,8 +2,8 @@
 #define COMBAT_SCENE_H
 
 #include "../lib/Scene.h"
-
 #include "../lib/GameTypes.h"
+#include <vector>
 #include <string>
 
 
@@ -19,10 +19,13 @@ enum CombatState {
     VICTORY
 };
 
+// Forward declare
+class Effects;
+
 class CombatScene : public Scene
 {
 public:
-    CombatScene(Vector2 origin, const char* hex) : Scene(origin, hex) {}
+    CombatScene(Vector2 origin, const char* hexColor) : Scene(origin, hexColor) {}
     void initialise() override;
     void update(float deltaTime) override;
     void render() override;
@@ -56,6 +59,10 @@ private:
 
     // Animation
     float mWheelRotation = 0.0f; // Current rotation angle
+
+    // --- TRANSITION EFFECTS ---
+    Effects* mEffects = nullptr;
+    float mTargetZoom = 1.0f; // Normal Zoom
 };
 
 #endif
