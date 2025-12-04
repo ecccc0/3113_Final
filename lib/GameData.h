@@ -112,6 +112,23 @@ inline std::vector<Item> INITIAL_INVENTORY() {
     return inv;
 }
 
+// Populate the bag with some better/worse items to test comparisons.
+inline std::vector<Equipment> INITIAL_EQUIPMENTS() {
+    std::vector<Equipment> bag;
+    // Melee
+    bag.push_back(MakeEquipment("Steel Pipe", EQUIP_MELEE, 12, 0, 0, PHYS, "Stronger than iron."));
+    bag.push_back(MakeEquipment("Toy Hammer", EQUIP_MELEE, 2, 0, 0, PHYS, "Squeaky."));
+    
+    // Guns
+    bag.push_back(MakeEquipment("Heavy Shotgun", EQUIP_GUN, 20, 0, 2, GUN, "High damage, low ammo."));
+    bag.push_back(MakeEquipment("Pistol S", EQUIP_GUN, 5, 0, 16, GUN, "Weak but reliable."));
+
+    // Armor
+    bag.push_back(MakeEquipment("Kevlar Vest", EQUIP_ARMOR, 0, 12, 0, ELEMENT_NONE, "Solid protection."));
+    bag.push_back(MakeEquipment("T-Shirt", EQUIP_ARMOR, 0, 1, 0, ELEMENT_NONE, "Better than nothing."));
+    return bag;
+}
+
 // --- ENEMY DATABASE ---
 // Helper to get an enemy by Type/ID
 inline Combatant getEnemyData(int id) {

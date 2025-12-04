@@ -20,6 +20,9 @@ Scene *gCurrentScene = nullptr;
 std::vector<Scene*> gLevels;
 std::vector<Combatant> gParty; // Defined here, populated from GameData
 std::vector<Item> gInventory;  // Player inventory
+// --- EQUIPMENT GLOBALS ---
+std::vector<Equipment> gOwnedEquipment; // The "Bag" of unequipped items
+int gSelectedEquipSlot = 0; // 0=Melee, 1=Gun, 2=Armor
 
 // Global Tracking
 std::vector<std::vector<bool>> gSceneEnemyDefeated; 
@@ -33,6 +36,7 @@ enum PauseState {
     P_SKILL_LIST,
     P_SKILL_TARGET_ALLY, // NEW: For selecting who to heal
     P_EQUIP_VIEW,
+    P_EQUIP_LIST,   // Select Item to Equip
     P_PERSONA,      // Joker only
     P_SYSTEM,
     P_AUDIO_SETTINGS     // NEW: Sliders
@@ -81,6 +85,17 @@ std::vector<int> GetHealingSkillIndices(const Combatant& c) {
     return indices;
 }
 
+// Helper to get indices of items in the bag that match the requested slot
+std::vector<int> GetEquipIndicesByType(EquipmentType type) {
+    std::vector<int> indices;
+    for (int i = 0; i < (int)gOwnedEquipment.size(); i++) {
+        if (gOwnedEquipment[i].type == type) {
+            indices.push_back(i);
+        }
+    }
+    return indices;
+}
+
 
 void switchToScene(int sceneIndex);
 void initialise();
@@ -112,6 +127,7 @@ void initialise()
     // Load Initial Party from Data Header
     gParty = INITIAL_PARTY(); 
     gInventory = INITIAL_INVENTORY();
+    gOwnedEquipment = INITIAL_EQUIPMENTS();
     
     // Initialize Audio (Requirement 6)
     InitAudioDevice();
@@ -341,6 +357,63 @@ void processInput()
                 gSFXVolume   = gsfxvolume;
             }
         }
+        
+        // H. EQUIP VIEW (Select Slot)
+        else if (gPauseState == P_EQUIP_VIEW) {
+            // 0=Melee, 1=Gun, 2=Armor
+            if (IsKeyPressed(KEY_UP))   gSelectedEquipSlot = (gSelectedEquipSlot - 1 + 3) % 3;
+            if (IsKeyPressed(KEY_DOWN)) gSelectedEquipSlot = (gSelectedEquipSlot + 1) % 3;
+
+            // Enter Selection -> Go to Bag List
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                gPauseState = P_EQUIP_LIST;
+                gSubMenuSelection = 0;
+            }
+        }
+
+        // I. EQUIP LIST (Select Item & Swap)
+        else if (gPauseState == P_EQUIP_LIST) {
+            // Determine Type based on previous slot selection
+            EquipmentType targetType = (gSelectedEquipSlot == 0) ? EQUIP_MELEE : 
+                                       (gSelectedEquipSlot == 1) ? EQUIP_GUN : EQUIP_ARMOR;
+            
+            std::vector<int> validIndices = GetEquipIndicesByType(targetType);
+
+            if (!validIndices.empty()) {
+                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)validIndices.size()) % (int)validIndices.size();
+                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)validIndices.size();
+
+                // SWAP ITEM
+                if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    Combatant& c = gParty[gSelectedMemberIdx];
+                    int realIdx = validIndices[gSubMenuSelection];
+                    
+                    // 1. Get references
+                    Equipment newEquip = gOwnedEquipment[realIdx];
+                    Equipment oldEquip;
+
+                    // 2. Identify current equip to swap out
+                    if (targetType == EQUIP_MELEE) oldEquip = c.meleeWeapon;
+                    else if (targetType == EQUIP_GUN) oldEquip = c.gunWeapon;
+                    else oldEquip = c.armor;
+
+                    // 3. Perform Swap
+                    // Remove new item from bag
+                    gOwnedEquipment.erase(gOwnedEquipment.begin() + realIdx);
+                    // Add old item to bag
+                    gOwnedEquipment.push_back(oldEquip);
+                    // Apply new item to combatant
+                    if (targetType == EQUIP_MELEE) c.meleeWeapon = newEquip;
+                    else if (targetType == EQUIP_GUN) c.gunWeapon = newEquip;
+                    else c.armor = newEquip;
+
+                    // PlaySound(gSndEquip);
+                    
+                    // Return to Slot View
+                    gPauseState = P_EQUIP_VIEW;
+                }
+            }
+        }
         gPauseJustOpened = false; // Reset after first frame
     }
 
@@ -532,6 +605,106 @@ void render()
                 DrawText(TextFormat("%d%%", (int)(values[i]*100)), 520, y+5, 20, c);
             }
             DrawText("[ESC] Back", 50, 550, 20, GRAY);
+        }
+
+        // 9. EQUIP VIEW (Select Slot)
+        else if (gPauseState == P_EQUIP_VIEW) {
+            Combatant& c = gParty[gSelectedMemberIdx];
+            DrawText(TextFormat("EQUIP: %s", c.name.c_str()), 50, 50, 40, WHITE);
+            
+            const char* slotNames[] = { "MELEE", "GUN", "ARMOR" };
+            Equipment* currentGear[] = { &c.meleeWeapon, &c.gunWeapon, &c.armor };
+
+            for (int i = 0; i < 3; i++) {
+                int y = 150 + (i * 100);
+                bool isSel = (i == gSelectedEquipSlot);
+
+                // Draw Slot Header
+                Color headerCol = isSel ? RED : DARKGRAY;
+                DrawText(slotNames[i], 100, y, 25, headerCol);
+                if(isSel) DrawText(">", 70, y, 25, RED);
+
+                // Draw Item Name & Desc
+                DrawText(currentGear[i]->name.c_str(), 200, y, 30, WHITE);
+                DrawText(currentGear[i]->description.c_str(), 200, y + 35, 20, GRAY);
+
+                // Draw Stats Summary
+                if (i == 0) DrawText(TextFormat("Atk: %d", currentGear[i]->attackPower), 600, y, 25, YELLOW);
+                if (i == 1) DrawText(TextFormat("Atk: %d  Mag: %d", currentGear[i]->attackPower, currentGear[i]->magazineSize), 600, y, 25, YELLOW);
+                if (i == 2) DrawText(TextFormat("Def: %d", currentGear[i]->defensePower), 600, y, 25, SKYBLUE);
+            }
+            DrawText("[Z] Change  [ESC] Back", 50, 550, 20, GRAY);
+        }
+
+        // 10. EQUIP LIST (Comparisons)
+        else if (gPauseState == P_EQUIP_LIST) {
+            Combatant& c = gParty[gSelectedMemberIdx];
+            EquipmentType targetType = (gSelectedEquipSlot == 0) ? EQUIP_MELEE : 
+                                       (gSelectedEquipSlot == 1) ? EQUIP_GUN : EQUIP_ARMOR;
+            
+            Equipment* current = (targetType == EQUIP_MELEE) ? &c.meleeWeapon : 
+                                 (targetType == EQUIP_GUN) ? &c.gunWeapon : &c.armor;
+
+            std::vector<int> validIndices = GetEquipIndicesByType(targetType);
+
+            DrawText("SELECT ITEM", 50, 50, 40, WHITE);
+
+            if (validIndices.empty()) {
+                DrawText("No equipment of this type.", 100, 200, 30, GRAY);
+            } else {
+                for (int i = 0; i < (int)validIndices.size(); i++) {
+                    int realIdx = validIndices[i];
+                    Equipment& item = gOwnedEquipment[realIdx];
+                    
+                    int y = 150 + (i * 80);
+                    bool isSel = (i == gSubMenuSelection);
+
+                    if (isSel) DrawText(">", 30, y, 30, RED);
+                    
+                    // Name
+                    DrawText(item.name.c_str(), 60, y, 30, isSel ? WHITE : GRAY);
+                    
+                    // --- STAT COMPARISON LOGIC ---
+                    int statX = 400;
+                    
+                    // Compare Attack (Melee/Gun)
+                    if (targetType != EQUIP_ARMOR) {
+                        int diff = item.attackPower - current->attackPower;
+                        Color statColor = LIGHTGRAY;
+                        const char* arrow = "";
+                        
+                        if (diff > 0) { statColor = GREEN; arrow = "^"; }
+                        if (diff < 0) { statColor = RED;   arrow = "v"; }
+
+                        DrawText(TextFormat("Atk: %d %s", item.attackPower, arrow), statX, y, 25, statColor);
+                        statX += 150;
+                    }
+
+                    // Compare Magazine (Gun Only)
+                    if (targetType == EQUIP_GUN) {
+                        int diff = item.magazineSize - current->magazineSize;
+                        Color statColor = LIGHTGRAY;
+                        const char* arrow = "";
+
+                        if (diff > 0) { statColor = GREEN; arrow = "^"; }
+                        if (diff < 0) { statColor = RED;   arrow = "v"; }
+
+                        DrawText(TextFormat("Mag: %d %s", item.magazineSize, arrow), statX, y, 25, statColor);
+                    }
+
+                    // Compare Defense (Armor Only)
+                    if (targetType == EQUIP_ARMOR) {
+                        int diff = item.defensePower - current->defensePower;
+                        Color statColor = LIGHTGRAY;
+                        const char* arrow = "";
+
+                        if (diff > 0) { statColor = GREEN; arrow = "^"; }
+                        if (diff < 0) { statColor = RED;   arrow = "v"; }
+
+                        DrawText(TextFormat("Def: %d %s", item.defensePower, arrow), statX, y, 25, statColor);
+                    }
+                }
+            }
         }
     }
 
