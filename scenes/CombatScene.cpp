@@ -6,6 +6,8 @@
 
 // Access exploration HUD icons
 extern Texture2D gPartyIcons[4];
+// Access global SFX volume
+extern float gSFXVolume;
 
 // CombatScene should use its own GameState.party rather than the global gParty
 
@@ -171,6 +173,21 @@ void CombatScene::initialise() {
         } else {
             mEnemyAtlas = LoadTextureFromImage(GenImageColor(32,25,RED)); // fallback
         }
+
+        // --- LOAD SFX ---
+        mSndMenu = LoadSound("assets/audio/menu.wav");
+        mSndBack = LoadSound("assets/audio/back.wav");
+        mSndGun  = LoadSound("assets/audio/gun.wav");
+        mSndHeal = LoadSound("assets/audio/heal.wav");
+        mSndHit  = LoadSound("assets/audio/hit.wav");
+        mSndCrit = LoadSound("assets/audio/crit.wav");
+        // Apply initial volumes
+        if (mSndMenu.frameCount) SetSoundVolume(mSndMenu, gSFXVolume);
+        if (mSndBack.frameCount) SetSoundVolume(mSndBack, gSFXVolume);
+        if (mSndGun.frameCount)  SetSoundVolume(mSndGun,  gSFXVolume);
+        if (mSndHeal.frameCount) SetSoundVolume(mSndHeal, gSFXVolume);
+        if (mSndHit.frameCount)  SetSoundVolume(mSndHit,  gSFXVolume);
+        if (mSndCrit.frameCount) SetSoundVolume(mSndCrit, gSFXVolume);
 }
 
     void CombatScene::shutdown() {
@@ -189,6 +206,14 @@ void CombatScene::initialise() {
         mPartySprites.clear();
         // Unload enemy atlas
         UnloadTexture(mEnemyAtlas);
+
+        // Unload SFX
+        if (mSndMenu.frameCount) UnloadSound(mSndMenu);
+        if (mSndBack.frameCount) UnloadSound(mSndBack);
+        if (mSndGun.frameCount)  UnloadSound(mSndGun);
+        if (mSndHeal.frameCount) UnloadSound(mSndHeal);
+        if (mSndHit.frameCount)  UnloadSound(mSndHit);
+        if (mSndCrit.frameCount) UnloadSound(mSndCrit);
     }
 
     void CombatScene::NextTurn() {
@@ -334,6 +359,7 @@ void CombatScene::initialise() {
                                 mGameState.party[targetID].currentHp = 0;
                                 mGameState.party[targetID].isAlive = false;
                             }
+                            if (mSndHit.frameCount) { SetSoundVolume(mSndHit, gSFXVolume); PlaySound(mSndHit); }
                             mLog = enemy.name + " attacks " + mGameState.party[targetID].name + "!";
                             // Spawn damage number near target ally
                             float tx = 100.0f; // left HUD base
@@ -365,9 +391,11 @@ void CombatScene::initialise() {
             // Command Wheel rotation via UP/DOWN
             if (IsKeyPressed(KEY_DOWN)) {
                 mSelectedActionIndex = (mSelectedActionIndex + 1) % 5;
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
             }
             else if (IsKeyPressed(KEY_UP)) {
                 mSelectedActionIndex = (mSelectedActionIndex - 1 + 5) % 5;
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
             }
 
             // Smoothly rotate wheel towards target angle, taking shortest wrap
@@ -379,6 +407,7 @@ void CombatScene::initialise() {
 
             // Confirm selection
             if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_Z)) {
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
                 switch (mSelectedActionIndex) {
                     case 0: { // Attack
                         for (int i = 0; i < mGameState.battleEnemies.size(); i++) {
@@ -424,10 +453,11 @@ void CombatScene::initialise() {
                 }
             }
         } else if (mState == PLAYER_TURN_SKILLS) {
-            if (IsKeyPressed(KEY_DOWN)) mSelectedSkillIndex = (mSelectedSkillIndex + 1) % actor.skills.size();
-            else if (IsKeyPressed(KEY_UP)) mSelectedSkillIndex = (mSelectedSkillIndex - 1 + actor.skills.size()) % actor.skills.size();
+            if (IsKeyPressed(KEY_DOWN)) { mSelectedSkillIndex = (mSelectedSkillIndex + 1) % actor.skills.size(); if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); } }
+            else if (IsKeyPressed(KEY_UP)) { mSelectedSkillIndex = (mSelectedSkillIndex - 1 + actor.skills.size()) % actor.skills.size(); if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); } }
 
             if (IsKeyPressed(KEY_Z ) || IsKeyPressed(KEY_SPACE)) {
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
                 Ability chosenSkill = actor.skills[mSelectedSkillIndex];
                 if (chosenSkill.damage < 0) {
                     // Healing skill - target ally only
@@ -440,10 +470,10 @@ void CombatScene::initialise() {
                     }
                     mState = PLAYER_TURN_TARGET;
                 }
-            } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) mState = PLAYER_TURN_MAIN;
+            } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) { if (mSndBack.frameCount) { SetSoundVolume(mSndBack, gSFXVolume); PlaySound(mSndBack); } mState = PLAYER_TURN_MAIN; }
         } else if (mState == PLAYER_TURN_TARGET) {
-            if (IsKeyPressed(KEY_RIGHT)) mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.battleEnemies.size();
-            else if (IsKeyPressed(KEY_LEFT)) mSelectedTargetIndex = (mSelectedTargetIndex - 1 + mGameState.battleEnemies.size()) % mGameState.battleEnemies.size();
+            if (IsKeyPressed(KEY_RIGHT)) { mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.battleEnemies.size(); if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); } }
+            else if (IsKeyPressed(KEY_LEFT)) { mSelectedTargetIndex = (mSelectedTargetIndex - 1 + mGameState.battleEnemies.size()) % mGameState.battleEnemies.size(); if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); } }
 
             while (!mGameState.battleEnemies[mSelectedTargetIndex].isAlive) {
                 mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.battleEnemies.size();
@@ -467,6 +497,8 @@ void CombatScene::initialise() {
                     if (action.isMagic) actor.currentSp -= action.cost;
                     else actor.currentHp -= action.cost;
                 }
+                // Play gun shot immediately for gun action
+                if (isGunAction && mSndGun.frameCount) { SetSoundVolume(mSndGun, gSFXVolume); PlaySound(mSndGun); }
                 CheckWeakness(actor, mGameState.battleEnemies[mSelectedTargetIndex], action);
                 // Allow multiple gun shots in a single turn until ammo is 0
                 if (isGunAction && actor.currentAmmo > 0) {
@@ -475,13 +507,13 @@ void CombatScene::initialise() {
                     mLog = "Ammo left: " + std::to_string(actor.currentAmmo) + " / " + std::to_string(actor.gunWeapon.magazineSize);
                     mTimer = 0.0f; // cancel wait animation for rapid fire
                 }
-            } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) mState = PLAYER_TURN_MAIN;
+            } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) { if (mSndBack.frameCount) { SetSoundVolume(mSndBack, gSFXVolume); PlaySound(mSndBack); } mState = PLAYER_TURN_MAIN; }
         }
         else if (mState == PLAYER_TURN_TARGET_ALLY) 
         {
             // 1. Navigate Party List (Up/Down matches the visual layout)
-            if (IsKeyPressed(KEY_DOWN)) mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.party.size();
-            else if (IsKeyPressed(KEY_UP)) mSelectedTargetIndex = (mSelectedTargetIndex - 1 + mGameState.party.size()) % mGameState.party.size();
+            if (IsKeyPressed(KEY_DOWN)) { mSelectedTargetIndex = (mSelectedTargetIndex + 1) % mGameState.party.size(); if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); } }
+            else if (IsKeyPressed(KEY_UP)) { mSelectedTargetIndex = (mSelectedTargetIndex - 1 + mGameState.party.size()) % mGameState.party.size(); if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); } }
 
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) // CONFIRM HEAL
             {
@@ -515,6 +547,8 @@ void CombatScene::initialise() {
                         // Consume item
                         mGameState.inventory.erase(mGameState.inventory.begin() + itemIndex);
                         actor.hasActed = true;
+                        // heal item sfx
+                        if (mSndHeal.frameCount) { SetSoundVolume(mSndHeal, gSFXVolume); PlaySound(mSndHeal); }
                         mState = ANIMATION_WAIT;
                         mTimer = 0.0f;
                     } else {
@@ -530,6 +564,7 @@ void CombatScene::initialise() {
                     target.currentHp += healAmount;
                     if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
                     mLog = "Healed " + target.name + " for " + std::to_string(healAmount) + " HP!";
+                    if (mSndHeal.frameCount) { SetSoundVolume(mSndHeal, gSFXVolume); PlaySound(mSndHeal); }
                     actor.hasActed = true;
                     mState = ANIMATION_WAIT;
                     mTimer = 0.0f;
@@ -541,22 +576,31 @@ void CombatScene::initialise() {
                 if (mSelectedSkillIndex <= -100) {
                     // Reset selection index for items
                     mSelectedSkillIndex = 0;
+                    if (mSndBack.frameCount) { SetSoundVolume(mSndBack, gSFXVolume); PlaySound(mSndBack); }
                     mState = PLAYER_TURN_ITEM;
                 } else {
+                    if (mSndBack.frameCount) { SetSoundVolume(mSndBack, gSFXVolume); PlaySound(mSndBack); }
                     mState = PLAYER_TURN_SKILLS;
                 }
             }
         }
         else if (mState == PLAYER_TURN_ITEM) 
         {
-            if (IsKeyPressed(KEY_DOWN)) 
+            if (IsKeyPressed(KEY_DOWN)) { 
                 mSelectedSkillIndex = (mSelectedSkillIndex + 1) % mGameState.inventory.size();
-            if (IsKeyPressed(KEY_UP))   
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
+            }
+            if (IsKeyPressed(KEY_UP))   {
                 mSelectedSkillIndex = (mSelectedSkillIndex - 1 + mGameState.inventory.size()) % mGameState.inventory.size();
-            if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) 
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
+            }
+            if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) { 
+                if (mSndBack.frameCount) { SetSoundVolume(mSndBack, gSFXVolume); PlaySound(mSndBack); }
                 mState = PLAYER_TURN_MAIN; // Cancel back to main
+            }
             // Use Item
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                if (mSndMenu.frameCount) { SetSoundVolume(mSndMenu, gSFXVolume); PlaySound(mSndMenu); }
                 // Encode the selected item into a negative sentinel to distinguish later
                 mSelectedSkillIndex = -(100 + mSelectedSkillIndex);
                 mState = PLAYER_TURN_TARGET_ALLY;
@@ -606,6 +650,13 @@ void CombatScene::initialise() {
             defender.isAlive = false;
             defender.isDown = true;
         }
+        // Play impact SFX (crit for weakness, otherwise hit)
+        if (isWeakness) {
+            if (mSndCrit.frameCount) { SetSoundVolume(mSndCrit, gSFXVolume); PlaySound(mSndCrit); }
+        } else {
+            if (mSndHit.frameCount) { SetSoundVolume(mSndHit, gSFXVolume); PlaySound(mSndHit); }
+        }
+
         // One more mechanics
         if (isWeakness && !defender.isDown && defender.isAlive) {
             defender.isDown = true;

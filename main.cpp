@@ -111,6 +111,23 @@ float gSFXVolume    = 0.8f;
 float gmusicvolume  = 0.8f;
 float gsfxvolume    = 0.8f;
 
+// --- SFX (loaded at init) ---
+Sound gSndBack{};
+Sound gSndCrit{};
+Sound gSndGun{};
+Sound gSndHeal{};
+Sound gSndHit{};
+Sound gSndMenu{};
+
+static void ApplySFXVolumes() {
+    if (gSndBack.frameCount) SetSoundVolume(gSndBack, gSFXVolume);
+    if (gSndCrit.frameCount) SetSoundVolume(gSndCrit, gSFXVolume);
+    if (gSndGun.frameCount)  SetSoundVolume(gSndGun,  gSFXVolume);
+    if (gSndHeal.frameCount) SetSoundVolume(gSndHeal, gSFXVolume);
+    if (gSndHit.frameCount)  SetSoundVolume(gSndHit,  gSFXVolume);
+    if (gSndMenu.frameCount) SetSoundVolume(gSndMenu, gSFXVolume);
+}
+
 // Helper: Draw a slanted/parallelogram rectangle (Persona-style)
 void DrawSlantedRect(int x, int y, int width, int height, int skew, Color color) {
     Vector2 v1 = { (float)x + (float)skew, (float)y };
@@ -221,6 +238,14 @@ void initialise()
     
     // Initialize Audio (Requirement 6)
     InitAudioDevice();
+    // Load SFX
+    gSndBack = LoadSound("assets/audio/back.wav");
+    gSndCrit = LoadSound("assets/audio/crit.wav");
+    gSndGun  = LoadSound("assets/audio/gun.wav");
+    gSndHeal = LoadSound("assets/audio/heal.wav");
+    gSndHit  = LoadSound("assets/audio/hit.wav");
+    gSndMenu = LoadSound("assets/audio/menu.wav");
+    ApplySFXVolumes();
 
     gShader.load("shaders/vertex.glsl", "shaders/fragment.glsl");
 
@@ -273,7 +298,7 @@ void processInput()
     {
         // --- 1. BACK / CANCEL LOGIC ---
         if (!gPauseJustOpened && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_C))) {
-            // PlaySound(gSndBack);
+            if (gSndBack.frameCount) PlaySound(gSndBack);
             switch (gPauseState) {
                 case P_SKILL_TARGET_ALLY:
                     gPauseState = P_SKILL_LIST; // Cancel targeting, return to list
@@ -322,7 +347,7 @@ void processInput()
             if (IsKeyPressed(KEY_DOWN)) gMenuSelection = (gMenuSelection + 1) % OPTION_COUNT;
             
             if (!gPauseJustOpened && (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER))) {
-                // PlaySound(gSndSelect);
+                if (gSndMenu.frameCount) PlaySound(gSndMenu);
                 if (gMenuSelection == 0) { // SKILL
                     gPauseState = P_PARTY_SELECT;
                     gSubMenuSelection = 0;
@@ -348,11 +373,12 @@ void processInput()
         // B. PARTY SELECTION (Shared for SKILL & EQUIP)
         else if (gPauseState == P_PARTY_SELECT) {
             if (!gParty.empty()) {
-                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size();
-                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size();
+                if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+                if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
             }
 
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                if (gSndMenu.frameCount) PlaySound(gSndMenu);
                 gSelectedMemberIdx = gSubMenuSelection;
                 if (gMenuSelection == 0) { // SKILL
                     gPauseState = P_SKILL_LIST;
@@ -369,13 +395,15 @@ void processInput()
             if (groups.empty()) {
                 // No items; back to main
                 if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    if (gSndBack.frameCount) PlaySound(gSndBack);
                     gPauseState = P_MAIN;
                     gMenuSelection = 0;
                 }
             } else {
-                if (IsKeyPressed(KEY_UP))   gItemGroupSelection = (gItemGroupSelection - 1 + (int)groups.size()) % (int)groups.size();
-                if (IsKeyPressed(KEY_DOWN)) gItemGroupSelection = (gItemGroupSelection + 1) % (int)groups.size();
+                if (IsKeyPressed(KEY_UP))   { gItemGroupSelection = (gItemGroupSelection - 1 + (int)groups.size()) % (int)groups.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+                if (IsKeyPressed(KEY_DOWN)) { gItemGroupSelection = (gItemGroupSelection + 1) % (int)groups.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
                 if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    if (gSndMenu.frameCount) PlaySound(gSndMenu);
                     // Go to target selection to apply item
                     gPauseState = P_ITEM_TARGET_ALLY;
                     // Default target to active member
@@ -387,8 +415,8 @@ void processInput()
         // D2. ITEM TARGETING (Apply item to ally)
         else if (gPauseState == P_ITEM_TARGET_ALLY) {
             if (!gParty.empty()) {
-                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size();
-                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size();
+                if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+                if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
             }
 
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
@@ -418,6 +446,7 @@ void processInput()
                     target.currentHp += chosen.value;
                     if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
                 }
+                if (gSndHeal.frameCount) PlaySound(gSndHeal);
                 // Consume item
                 if (idxItem >= 0) {
                     gInventory.erase(gInventory.begin() + idxItem);
@@ -434,8 +463,8 @@ void processInput()
             std::vector<int> healIndices = GetHealingSkillIndices(actor);
 
             if (!healIndices.empty()) {
-                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)healIndices.size()) % (int)healIndices.size();
-                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)healIndices.size();
+                if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)healIndices.size()) % (int)healIndices.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+                if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % (int)healIndices.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
 
                 // SELECT SKILL -> GO TO TARGETING
                 if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
@@ -448,6 +477,7 @@ void processInput()
                     if (canCast) {
                         gPauseState = P_SKILL_TARGET_ALLY;
                         gSubMenuSelection = gSelectedMemberIdx; // Default target = Self
+                        if (gSndMenu.frameCount) PlaySound(gSndMenu);
                     } else {
                         // PlaySound(gSndError); // Optional: Feedback for low SP
                     }
@@ -458,8 +488,8 @@ void processInput()
         // D. SKILL TARGETING (Apply the Heal)
         else if (gPauseState == P_SKILL_TARGET_ALLY) {
             if (!gParty.empty()) {
-                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size();
-                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size();
+                if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+                if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
             }
 
             // CONFIRM HEAL
@@ -477,7 +507,7 @@ void processInput()
                 target.currentHp += amount;
                 if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
 
-                // PlaySound(gSndHeal); // Audio Feedback
+                if (gSndHeal.frameCount) PlaySound(gSndHeal); // Audio Feedback
                 
                 // Return to list or stay? Usually return to list.
                 gPauseState = P_SKILL_LIST;
@@ -488,11 +518,12 @@ void processInput()
         // E. SYSTEM MENU
         else if (gPauseState == P_SYSTEM) {
             // Options: 0: Audio, 1: Quit
-            if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + 2) % 2;
-            if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % 2;
+            if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + 2) % 2; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+            if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % 2; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
 
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
                 if (gSubMenuSelection == 0) {
+                    if (gSndMenu.frameCount) PlaySound(gSndMenu);
                     gPauseState = P_AUDIO_SETTINGS;
                     gSubMenuSelection = 0; // Reset to Master Volume
                 } else {
@@ -504,8 +535,8 @@ void processInput()
         // F. AUDIO SETTINGS
         else if (gPauseState == P_AUDIO_SETTINGS) {
             // 0: Master, 1: Music, 2: SFX
-            if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + 3) % 3;
-            if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % 3;
+            if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + 3) % 3; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+            if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % 3; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
 
             // Adjust Volume
             float* targetVol = nullptr;
@@ -533,6 +564,7 @@ void processInput()
                 // Mirror lowercase values into canonical globals for use elsewhere
                 gMusicVolume = gmusicvolume;
                 gSFXVolume   = gsfxvolume;
+                ApplySFXVolumes();
             }
         }
         
@@ -554,11 +586,12 @@ void processInput()
         // H. EQUIP VIEW (Select Slot)
         else if (gPauseState == P_EQUIP_VIEW) {
             // 0=Melee, 1=Gun, 2=Armor
-            if (IsKeyPressed(KEY_UP))   gSelectedEquipSlot = (gSelectedEquipSlot - 1 + 3) % 3;
-            if (IsKeyPressed(KEY_DOWN)) gSelectedEquipSlot = (gSelectedEquipSlot + 1) % 3;
+            if (IsKeyPressed(KEY_UP))   { gSelectedEquipSlot = (gSelectedEquipSlot - 1 + 3) % 3; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+            if (IsKeyPressed(KEY_DOWN)) { gSelectedEquipSlot = (gSelectedEquipSlot + 1) % 3; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
 
             // Enter Selection -> Go to Bag List
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                if (gSndMenu.frameCount) PlaySound(gSndMenu);
                 gPauseState = P_EQUIP_LIST;
                 gSubMenuSelection = 0;
             }
@@ -573,11 +606,12 @@ void processInput()
             std::vector<int> validIndices = GetEquipIndicesByType(targetType);
 
             if (!validIndices.empty()) {
-                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)validIndices.size()) % (int)validIndices.size();
-                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)validIndices.size();
+                if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)validIndices.size()) % (int)validIndices.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
+                if (IsKeyPressed(KEY_DOWN)) { gSubMenuSelection = (gSubMenuSelection + 1) % (int)validIndices.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
 
                 // SWAP ITEM
                 if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    if (gSndMenu.frameCount) PlaySound(gSndMenu);
                     Combatant& c = gParty[gSelectedMemberIdx];
                     int realIdx = validIndices[gSubMenuSelection];
                     
@@ -600,7 +634,6 @@ void processInput()
                     else if (targetType == EQUIP_GUN) c.gunWeapon = newEquip;
                     else c.armor = newEquip;
 
-                    // PlaySound(gSndEquip);
                     
                     // Return to Slot View
                     gPauseState = P_EQUIP_VIEW;
@@ -1085,6 +1118,13 @@ void Shutdown()
             gPartyIcons[i] = Texture2D{};
         }
     }
+    // Unload SFX before closing audio
+    if (gSndBack.frameCount) UnloadSound(gSndBack);
+    if (gSndCrit.frameCount) UnloadSound(gSndCrit);
+    if (gSndGun.frameCount)  UnloadSound(gSndGun);
+    if (gSndHeal.frameCount) UnloadSound(gSndHeal);
+    if (gSndHit.frameCount)  UnloadSound(gSndHit);
+    if (gSndMenu.frameCount) UnloadSound(gSndMenu);
     CloseAudioDevice();
     CloseWindow();
 }
@@ -1175,6 +1215,13 @@ int main()
         render();
     }
 
+    // Ensure SFX are unloaded before closing (if not already)
+    if (gSndBack.frameCount) UnloadSound(gSndBack);
+    if (gSndCrit.frameCount) UnloadSound(gSndCrit);
+    if (gSndGun.frameCount)  UnloadSound(gSndGun);
+    if (gSndHeal.frameCount) UnloadSound(gSndHeal);
+    if (gSndHit.frameCount)  UnloadSound(gSndHit);
+    if (gSndMenu.frameCount) UnloadSound(gSndMenu);
     CloseAudioDevice();
     CloseWindow();
     return 0;

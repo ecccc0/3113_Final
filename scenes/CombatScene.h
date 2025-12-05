@@ -85,6 +85,14 @@ private:
     std::vector<FloatingText> mFloatingTexts;
     void SpawnFloatingText(Vector2 pos, const std::string& text, Color color, float lifetime = 0.8f);
 
+    // --- AUDIO SFX ---
+    Sound mSndMenu = {};
+    Sound mSndBack = {};
+    Sound mSndGun  = {};
+    Sound mSndHeal = {};
+    Sound mSndHit  = {};
+    Sound mSndCrit = {};
+
     unsigned int mLevelData[20*20] = {
 
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
