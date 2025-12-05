@@ -46,6 +46,10 @@ public:
     // Reveal tiles around player within radius
     void revealTiles(Vector2 playerPos, float radius);
 
+    // Accessor/mutator for exploration state so scenes can persist it
+    std::vector<bool>& getExploredTiles() { return mTileExplored; }
+    void setExploredTiles(const std::vector<bool>& data) { mTileExplored = data; }
+
     int           getMapColumns()     const { return mMapColumns;     };
     int           getMapRows()        const { return mMapRows;        };
     float         getTileSize()       const { return mTileSize;       };

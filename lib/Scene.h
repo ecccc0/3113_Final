@@ -50,6 +50,12 @@ struct GameState
     // Per-level defeated enemy flags (owned by scene)
     std::vector<bool> defeatedEnemies;
 
+    // Per-level opened chest flags (owned by scene)
+    std::vector<bool> openedChests;
+
+    // Per-level map exploration (fog-of-war) state, flattened per-tile flags
+    std::vector<bool> revealedTiles;
+
     int shaderStatus = 0; // 0 = normal, 1 = spotted, 2 = hidden
 
     // UI Toast for item acquisition

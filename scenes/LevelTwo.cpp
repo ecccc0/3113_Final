@@ -208,19 +208,37 @@ void LevelTwo::initialise()
             { -33.0f, 247.0f },
             {1091.0f, 571.0f }
         };
-        mPropCount = static_cast<int>(chestPositions.size());
-        mWorldProps = new Entity[mPropCount];
-        for (int i = 0; i < mPropCount; ++i) {
-            mWorldProps[i] = Entity();
-            mWorldProps[i].setEntityType(PROP);
-            mWorldProps[i].setIsChest(true);
-            mWorldProps[i].setPosition(chestPositions[i]);
-            mWorldProps[i].setScale({ 28.0f, 28.0f });
-            mWorldProps[i].setColliderDimensions({ 28.0f, 28.0f });
-            mWorldProps[i].setTexture("assets/chest.png");
-            mWorldProps[i].setTint(GOLD);
-            mWorldProps[i].activate();
-            mWorldProps[i].setAcceleration({0.0f,0.0f});
+        // Ensure opened chest flags match chest count
+        if (mGameState.openedChests.size() < chestPositions.size()) {
+            mGameState.openedChests.resize(chestPositions.size(), false);
+        }
+
+        // Count only unopened chests for allocation
+        int activeChestCount = 0;
+        for (size_t i = 0; i < chestPositions.size(); ++i) {
+            if (!mGameState.openedChests[i]) {
+                ++activeChestCount;
+            }
+        }
+
+        mPropCount = activeChestCount;
+        mWorldProps = (mPropCount > 0) ? new Entity[mPropCount] : nullptr;
+
+        int propIndex = 0;
+        for (size_t i = 0; i < chestPositions.size(); ++i) {
+            if (mGameState.openedChests[i]) continue; // Skip spawning opened chests
+
+            mWorldProps[propIndex] = Entity();
+            mWorldProps[propIndex].setEntityType(PROP);
+            mWorldProps[propIndex].setIsChest(true);
+            mWorldProps[propIndex].setPosition(chestPositions[i]);
+            mWorldProps[propIndex].setScale({ 28.0f, 28.0f });
+            mWorldProps[propIndex].setColliderDimensions({ 28.0f, 28.0f });
+            mWorldProps[propIndex].setTexture("assets/chest.png");
+            mWorldProps[propIndex].setTint(GOLD);
+            mWorldProps[propIndex].activate();
+            mWorldProps[propIndex].setAcceleration({0.0f,0.0f});
+            ++propIndex;
         }
     }
 
@@ -229,6 +247,11 @@ void LevelTwo::initialise()
     mGameState.camera.offset = mOrigin;
     mGameState.camera.rotation = 0.0f;
     mGameState.camera.zoom = 2.0f;
+
+    // Restore any saved exploration state for this map
+    if (mGameState.map && !mGameState.revealedTiles.empty()) {
+        mGameState.map->setExploredTiles(mGameState.revealedTiles);
+    }
 
     // Effects
     if (mEffects) delete mEffects;
@@ -265,6 +288,7 @@ void LevelTwo::update(float deltaTime)
     if (mGameState.map && mGameState.player) {
         Vector2 pPos = mGameState.player->getPosition();
         mGameState.map->revealTiles(pPos, 200.0f);
+        mGameState.revealedTiles = mGameState.map->getExploredTiles();
     }
 
     // Followers physics
@@ -298,9 +322,23 @@ void LevelTwo::update(float deltaTime)
                     mGameState.itemToast = std::string("Obtained: ") + loot.name;
                     mGameState.itemToastTimer = 2.0f;
                     prop->deactivate();
+
+                    // Persist chest opened flag
+                    if (i < (int)mGameState.openedChests.size()) {
+                        mGameState.openedChests[i] = true;
+                    }
                 }
             }
         }
+    }
+
+    bool allChestsOpened = true;
+    for (int i = 0; i < mPropCount; ++i) {
+        Entity* prop = &mWorldProps[i];
+        if (prop->isChest() && prop->isActive()) { allChestsOpened = false; break; }
+    }
+    if (allChestsOpened) {
+        mGameState.nextSceneID = 4; 
     }
 
     // Enemies update & combat triggers
@@ -329,16 +367,19 @@ void LevelTwo::update(float deltaTime)
 
         mGameState.shaderStatus = isSpotted ? 1 : 0;
 
+        // Ambush attempt (SPACE) should not work on searchlights
         if (IsKeyPressed(KEY_SPACE)) {
-            float distToEnemy = Vector2Distance(player->getPosition(), enemy->getPosition());
-            if (distToEnemy < AMBUSH_DISTANCE) {
-                if (player->checkAmbush(enemy)) {
-                    mIsTransitioning = true;
-                    if (mEffects) mEffects->start(FADEOUT);
-                    mGameState.engagedEnemyIndex = i;
-                    mGameState.returnSceneID     = gCurrentLevelIndex;
-                    mGameState.combatAdvantage   = true;
-                    return;
+            if (enemy->getAIType() != AI_SEARCHLIGHT) {
+                float distToEnemy = Vector2Distance(player->getPosition(), enemy->getPosition());
+                if (distToEnemy < AMBUSH_DISTANCE) {
+                    if (player->checkAmbush(enemy)) {
+                        mIsTransitioning = true;
+                        if (mEffects) mEffects->start(FADEOUT);
+                        mGameState.engagedEnemyIndex = i;
+                        mGameState.returnSceneID     = gCurrentLevelIndex;
+                        mGameState.combatAdvantage   = true;
+                        return;
+                    }
                 }
             }
         }

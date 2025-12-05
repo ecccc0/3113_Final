@@ -180,19 +180,37 @@ void LevelOne::initialise()
         { 37.0f, 218.0f },
         { 515.0f, -265.0f }
     };
-    mPropCount = static_cast<int>(chestPositions.size());
-    mWorldProps = new Entity[mPropCount];
-    for (int i = 0; i < mPropCount; ++i) {
-        mWorldProps[i] = Entity();
-        mWorldProps[i].setEntityType(PROP);
-        mWorldProps[i].setIsChest(true);
-        mWorldProps[i].setPosition(chestPositions[i]);
-        mWorldProps[i].setScale({ 28.0f, 28.0f });
-        mWorldProps[i].setColliderDimensions({ 28.0f, 28.0f });
-        mWorldProps[i].setTexture("assets/chest.png");
-        mWorldProps[i].setTint(GOLD);
-        mWorldProps[i].activate();
-        mWorldProps[i].setAcceleration({0.0f,0.0f});
+    // Ensure opened chest flags match chest count
+    if (mGameState.openedChests.size() < chestPositions.size()) {
+        mGameState.openedChests.resize(chestPositions.size(), false);
+    }
+
+    // Count only unopened chests when allocating prop array
+    int activeChestCount = 0;
+    for (size_t i = 0; i < chestPositions.size(); ++i) {
+        if (!mGameState.openedChests[i]) {
+            ++activeChestCount;
+        }
+    }
+
+    mPropCount = activeChestCount;
+    mWorldProps = (mPropCount > 0) ? new Entity[mPropCount] : nullptr;
+
+    int propIndex = 0;
+    for (size_t i = 0; i < chestPositions.size(); ++i) {
+        if (mGameState.openedChests[i]) continue; // Skip spawning opened chests
+
+        mWorldProps[propIndex] = Entity();
+        mWorldProps[propIndex].setEntityType(PROP);
+        mWorldProps[propIndex].setIsChest(true);
+        mWorldProps[propIndex].setPosition(chestPositions[i]);
+        mWorldProps[propIndex].setScale({ 28.0f, 28.0f });
+        mWorldProps[propIndex].setColliderDimensions({ 28.0f, 28.0f });
+        mWorldProps[propIndex].setTexture("assets/chest.png");
+        mWorldProps[propIndex].setTint(GOLD);
+        mWorldProps[propIndex].activate();
+        mWorldProps[propIndex].setAcceleration({0.0f,0.0f});
+        ++propIndex;
     }
 
     // SETUP CAMERA
@@ -200,6 +218,11 @@ void LevelOne::initialise()
     mGameState.camera.offset = mOrigin;
     mGameState.camera.rotation = 0.0f;
     mGameState.camera.zoom = 2.0f;
+
+    // If we have a saved exploration buffer for this map, restore it
+    if (mGameState.map && !mGameState.revealedTiles.empty()) {
+        mGameState.map->setExploredTiles(mGameState.revealedTiles);
+    }
 
     // Initialize Effects with screen dimensions (1000x600)
     if (mEffects) delete mEffects;
@@ -241,11 +264,12 @@ void LevelOne::update(float deltaTime)
 
     // PLAYER UPDATE & MAP INTERACTION
     mGameState.player->update(deltaTime, mGameState.player, mGameState.map, mWorldProps, mPropCount);
-    // reveal tiles around player
+    // reveal tiles around player and persist exploration
     if (mGameState.map && mGameState.player)
     {
         Vector2 pPos = mGameState.player->getPosition();
         mGameState.map->revealTiles(pPos, 200.0f);
+        mGameState.revealedTiles = mGameState.map->getExploredTiles();
     }
 
     // FOLLOWER PARTY PHYSICS
@@ -281,6 +305,11 @@ void LevelOne::update(float deltaTime)
                     mGameState.itemToast = std::string("Obtained: ") + loot.name;
                     mGameState.itemToastTimer = 2.0f;
                     prop->deactivate();
+
+                    // Persist chest opened flag
+                    if (i < (int)mGameState.openedChests.size()) {
+                        mGameState.openedChests[i] = true;
+                    }
                 }
             }
         }

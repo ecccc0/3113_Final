@@ -63,6 +63,8 @@ void EquipPersona(int index) {
 
 // Global Tracking
 std::vector<std::vector<bool>> gSceneEnemyDefeated; 
+std::vector<std::vector<bool>> gSceneOpenedChests;
+std::vector<std::vector<bool>> gSceneRevealedTiles;
 
 ShaderProgram gShader;
 
@@ -1152,6 +1154,8 @@ int main()
     gLevels.push_back(new LevelThree({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     
     gSceneEnemyDefeated.resize(gLevels.size());
+    gSceneOpenedChests.resize(gLevels.size());
+    gSceneRevealedTiles.resize(gLevels.size());
 
     switchToScene(IDX_START_MENU);
     gGameStatus = TITLE;
@@ -1181,6 +1185,10 @@ int main()
                 }
                 // Copy defeated enemy flags from level to combat scene
                 gLevels[nextID]->getState().defeatedEnemies = gCurrentScene->getState().defeatedEnemies;
+                // Copy opened chest flags from level to combat scene
+                gLevels[nextID]->getState().openedChests = gCurrentScene->getState().openedChests;
+                // Copy map revealed tiles from level to combat scene
+                gLevels[nextID]->getState().revealedTiles = gCurrentScene->getState().revealedTiles;
             }
              
             // Return from Combat: Update Global Party and restore spawn position in target level
@@ -1191,6 +1199,10 @@ int main()
                 gLevels[nextID]->getState().hasReturnSpawnPos = gCurrentScene->getState().hasReturnSpawnPos;
                 // Copy defeated enemy flags back to target level scene
                 gLevels[nextID]->getState().defeatedEnemies = gCurrentScene->getState().defeatedEnemies;
+                // Copy opened chest flags back to target level scene
+                gLevels[nextID]->getState().openedChests = gCurrentScene->getState().openedChests;
+                // Copy map revealed tiles back to target level scene
+                gLevels[nextID]->getState().revealedTiles = gCurrentScene->getState().revealedTiles;
             }
 
             // Use global fade transition for level/combat switches (no camera tween)
