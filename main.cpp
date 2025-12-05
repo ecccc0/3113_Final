@@ -66,25 +66,25 @@ std::vector<std::vector<bool>> gSceneEnemyDefeated;
 
 ShaderProgram gShader;
 
-// --- GLOBAL TRANSITION (Fade In/Out) ---
+// GLOBAL TRANSITION (Fade In/Out)
 enum TransitionPhase { T_NONE, T_FADE_OUT, T_SWITCH, T_FADE_IN };
 TransitionPhase gTransitionPhase = T_NONE;
 float gTransitionAlpha = 0.0f; // 0.0 = visible, 1.0 = black
 int gPendingSceneID = -1;
 
-// --- PAUSE MENU GLOBALS ---
+// PAUSE MENU GLOBALS
 enum PauseState {
     P_MAIN,
     P_PARTY_SELECT, // For choosing who to view (Skill/Equip)
     P_SKILL_LIST,
-    P_SKILL_TARGET_ALLY, // NEW: For selecting who to heal
+    P_SKILL_TARGET_ALLY, 
     P_ITEM_LIST,
     P_ITEM_TARGET_ALLY,
     P_EQUIP_VIEW,
     P_EQUIP_LIST,   // Select Item to Equip
     P_PERSONA,      // Joker only
     P_SYSTEM,
-    P_AUDIO_SETTINGS     // NEW: Sliders
+    P_AUDIO_SETTINGS    
 };
 
 PauseState gPauseState = P_MAIN;

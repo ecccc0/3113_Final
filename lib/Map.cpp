@@ -161,7 +161,7 @@ bool Map::isSolidTileAt(Vector2 position, float *xOverlap, float *yOverlap)
 
 bool Map::hasLineOfSight(Vector2 start, Vector2 end)
 {
-    // 1. Calculate direction and distance
+    // Calculate direction and distance
     Vector2 diff = Vector2Subtract(end, start);
     float dist = Vector2Length(diff);
     
@@ -170,18 +170,14 @@ bool Map::hasLineOfSight(Vector2 start, Vector2 end)
 
     Vector2 dir = Vector2Normalize(diff);
 
-    // 2. Raymarching parameters
-    // Step size should be smaller than tile size to avoid skipping corners.
-    // mTileSize is usually 32, so 16 or 10 is safe.
     float stepSize = mTileSize / 3.0f; 
     
-    // 3. Iterate from Start to End
+    // Iterate from Start to End
     for (float d = 0; d < dist; d += stepSize)
     {
         Vector2 checkPos = Vector2Add(start, Vector2Scale(dir, d));
 
         // Convert World Pos -> Map Grid Coordinates
-        // (Logic borrowed from isSolidTileAt)
         int tx = floor((checkPos.x - mLeftBoundary) / mTileSize);
         int ty = floor((checkPos.y - mTopBoundary) / mTileSize);
 
