@@ -4,8 +4,6 @@
 #include <cmath> // atan2f for debug cone rendering
 extern float gMusicVolume;
 
-// --- LEVEL DATA ---
-
 
 // Defeated enemies are tracked per scene in mGameState.defeatedEnemies now.
 extern int gCurrentLevelIndex; // used to set returnSceneID during combat transitions
@@ -70,7 +68,7 @@ void LevelOne::initialise()
         mGameState.hasReturnSpawnPos = false; // consume so we don't reuse it on next initialise
     }
 
-    // 2b. CREATE PARTY FOLLOWERS (Skull, Mona, Noir) using atlas + tints
+    // CREATE PARTY FOLLOWERS (Skull, Mona, Noir) using atlas + tints
     // Spawn behind player with slight offsets
     Vector2 playerPos = mGameState.player->getPosition();
     const float spacing = 40.0f;

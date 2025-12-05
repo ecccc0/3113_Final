@@ -659,11 +659,11 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         return;
     }
 
-    // A. TETHER FORCE (Attraction directly to leader position)
+    // TETHER FORCE (Attraction directly to leader position)
     Vector2 targetPos = leader->getPosition();
     Vector2 tether = Vector2Scale(Vector2Subtract(targetPos, currentPos), tetherSpeed);
 
-    // B. SEPARATION FORCE (Inverse-square repulsion)
+    // SEPARATION FORCE (Inverse-square repulsion)
     Vector2 separation = {0.0f, 0.0f};
     // Repel from leader
     if (leader != nullptr && leader != this) {
@@ -690,7 +690,7 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         }
     }
 
-    // C. IDLE JITTER (Ambient life)
+    // IDLE JITTER (Ambient life)
     Vector2 jitter = {0.0f, 0.0f};
     if (Vector2Length(mVelocity) < 5.0f) {
         float time = GetTime();
@@ -699,7 +699,7 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         jitter = Vector2Scale(noise, jitterStrength);
     }
 
-    // D. INTEGRATE FORCES -> ACCELERATION
+    // INTEGRATE FORCES -> ACCELERATION
     Vector2 acceleration = tether;
     acceleration = Vector2Add(acceleration, Vector2Scale(separation, 2.0f)); // Separation weighted
     acceleration = Vector2Add(acceleration, jitter);
