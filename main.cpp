@@ -1,3 +1,14 @@
+/**
+* Author: Eric Cheung
+* Assignment: Final Project - Persona 5 Demake
+* Date due: Dec 5, 2:00pm
+* I pledge that I have completed this assignment without
+* collaborating with anyone else, in conformance with the
+* NYU School of Engineering Policies and Procedures on
+* Academic Misconduct.
+**/
+
+
 #include "lib/cs3113.h"
 #include "lib/GameTypes.h"
 #include "lib/GameData.h"
