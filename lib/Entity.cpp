@@ -447,8 +447,13 @@ void Entity::render()
         default: break;
     }
 
-    // Flip horizontally when facing LEFT by negating source width
-    if (mDirection == LEFT) {
+    // FLIP LOGIC UPDATED
+    // If sprite faces Right (default): Flip when moving Left.
+    // If sprite faces Left (new enemy): Flip when moving Right.
+    bool shouldFlip = false;
+    if (!mSpriteFacesLeft && mDirection == LEFT)  shouldFlip = true;
+    if ( mSpriteFacesLeft && mDirection == RIGHT) shouldFlip = true;
+    if (shouldFlip) {
         textureArea.width *= -1.0f;
     }
 

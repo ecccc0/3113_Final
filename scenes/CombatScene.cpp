@@ -18,6 +18,45 @@ static void DrawSlantedRect(int x, int y, int width, int height, int skew, Color
     DrawTriangle(v1, v3, v4, color);
 }
 
+// Helper: compute enemy atlas source rect based on combat state and timer
+Rectangle CombatScene::GetEnemyFrameRect(Combatant& enemy, CombatState state, float timer)
+{
+    int frameIndex = 0; // default idle
+    float animSpeed = 0.15f; // seconds per frame
+
+    if (!enemy.isAlive) {
+        frameIndex = 20; // death last frame
+    }
+    else if (state == ANIMATION_WAIT && (&enemy - &mGameState.battleEnemies[0]) == mSelectedTargetIndex) {
+        int offset = (int)(timer / animSpeed) % 4; // 13-16
+        frameIndex = 13 + offset;
+    }
+    else if (state == ENEMY_TURN && (&enemy - &mGameState.battleEnemies[0]) == mActiveEnemyIndex) {
+        int offset = (int)(timer / animSpeed) % 5; // 8-12
+        frameIndex = 8 + offset;
+    }
+    else {
+        int offset = (int)(GetTime() / 0.2f) % 4; // 0-3 idle
+        frameIndex = 0 + offset;
+    }
+
+    int col = frameIndex % 8;
+    int row = frameIndex / 8;
+    Rectangle source = { (float)col * 32.0f, (float)row * 25.0f, 32.0f, 25.0f };
+    return source;
+}
+
+void CombatScene::SpawnFloatingText(Vector2 pos, const std::string& text, Color color, float lifetime)
+{
+    FloatingText ft;
+    ft.pos = pos;
+    ft.text = text;
+    ft.color = color;
+    ft.lifetime = lifetime;
+    ft.elapsed = 0.0f;
+    mFloatingTexts.push_back(ft);
+}
+
 void CombatScene::initialise() {
     // Set initial turn state based on advantage
         mActiveMemberIndex = 0;
@@ -110,6 +149,13 @@ void CombatScene::initialise() {
         mGameState.camera.rotation = 0.0f;
         // Center camera roughly on the battle (assuming fixed positions in render)
         mGameState.camera.target = { 500.0f, 300.0f }; // Center of screen
+
+        // Load enemy atlas for combat sprites
+        if (FileExists("assets/enemy_atlas.png")) {
+            mEnemyAtlas = LoadTexture("assets/enemy_atlas.png");
+        } else {
+            mEnemyAtlas = LoadTextureFromImage(GenImageColor(32,25,RED)); // fallback
+        }
 }
 
     void CombatScene::shutdown() {
@@ -126,6 +172,8 @@ void CombatScene::initialise() {
         if (mEffects) { delete mEffects; mEffects = nullptr; }
         for (Entity* e : mPartySprites) { delete e; }
         mPartySprites.clear();
+        // Unload enemy atlas
+        UnloadTexture(mEnemyAtlas);
     }
 
     void CombatScene::NextTurn() {
@@ -230,6 +278,10 @@ void CombatScene::initialise() {
                         if (mGameState.party[targetID].isAlive) {
                             mGameState.party[targetID].currentHp -= enemy.baseAttack;
                             mLog = enemy.name + " attacks " + mGameState.party[targetID].name + "!";
+                            // Spawn damage number near target ally
+                            float tx = 100.0f; // left HUD base
+                            float ty = 100.0f + (targetID * 90.0f);
+                            SpawnFloatingText({ tx + 220.0f, ty }, TextFormat("-%d", enemy.baseAttack), RED, 0.8f);
                         }
                     }
 
@@ -437,7 +489,16 @@ void CombatScene::initialise() {
                 mSelectedTargetIndex = mActiveMemberIndex; // Default to self
             }
         }
-        
+        // --- UPDATE FLOATING DAMAGE TEXTS ---
+        for (int i = (int)mFloatingTexts.size() - 1; i >= 0; --i) {
+            FloatingText& ft = mFloatingTexts[i];
+            ft.elapsed += deltaTime;
+            // move up and fade out over lifetime
+            ft.pos.y -= 40.0f * deltaTime;
+            if (ft.elapsed >= ft.lifetime) {
+                mFloatingTexts.erase(mFloatingTexts.begin() + i);
+            }
+        }
     }
 
     void CombatScene::CheckWeakness(Combatant& attacker, Combatant& defender, Ability skill) {
@@ -480,6 +541,18 @@ void CombatScene::initialise() {
             mLog = "Hit! Dealt " + std::to_string(damage) + " damage.";
             attacker.hasActed = true;
         }
+        // Spawn damage floating text at enemy position (right side column)
+        // Find index of defender in enemy list if present
+        int defIndex = -1;
+        for (int i = 0; i < (int)mGameState.battleEnemies.size(); ++i) {
+            if (mGameState.battleEnemies[i].name == defender.name) { defIndex = i; break; }
+        }
+        if (defIndex >= 0) {
+            float ex = 600.0f + (defIndex * 120.0f);
+            float ey = 200.0f;
+            SpawnFloatingText({ ex + 10.0f, ey - 40.0f }, TextFormat("-%d", damage), YELLOW, 0.8f);
+        }
+
         mState = ANIMATION_WAIT;
         mTimer = 0.0f;
     }
@@ -594,22 +667,42 @@ void CombatScene::initialise() {
 
         for (int i = 0; i < mGameState.battleEnemies.size(); i++) {
             Combatant& enemy = mGameState.battleEnemies[i];
-            if (!enemy.isAlive) continue;
 
             float x = 600 + (i * 120);
             float y = 200;
 
+            // Cursor indicator when targeting
             if (mState == PLAYER_TURN_TARGET && mSelectedTargetIndex == i) {
                 DrawCircle(x+40, y-20, 10, RED);
             }
 
-            Color ec = RED;
-            if (enemy.isDown) ec = BLUE;
+            // Animation frame selection
+            Rectangle source = GetEnemyFrameRect(enemy, mState, mTimer);
+            Rectangle dest = { x, y, 64.0f, 50.0f };
 
-            DrawRectangle(x, y, 80, 80, ec);
-            DrawText(enemy.name.c_str(), x, y-30, 20, WHITE);
-            DrawText(TextFormat("%d", enemy.currentHp), x+20, y+30, 20, WHITE);
-            if (enemy.isDown) DrawText("DOWN", x, y+90, 20, SKYBLUE);
+            // Draw atlas-based enemy (face left naturally; no flip)
+            if (enemy.isAlive || (int)(source.x/32.0f) + (int)(source.y/25.0f)*8 == 20) {
+                DrawTexturePro(mEnemyAtlas, source, dest, {0,0}, 0.0f, WHITE);
+            }
+
+            // Name and HP bar overlays above enemy
+            DrawText(enemy.name.c_str(), (int)x, (int)(y-50), 20, WHITE);
+
+            // Simple thin HP bar
+            int barWidth = 80;
+            int barHeight = 6;
+            int barX = (int)x;
+            int barY = (int)(y - 30);
+            float hpPercent = (enemy.maxHp > 0) ? (float)enemy.currentHp / (float)enemy.maxHp : 0.0f;
+            if (hpPercent < 0) hpPercent = 0; if (hpPercent > 1) hpPercent = 1;
+            Color hpColor = (hpPercent < 0.2f) ? RED : (hpPercent < 0.5f ? YELLOW : GREEN);
+            DrawRectangle(barX, barY, barWidth, barHeight, Fade(BLACK, 0.6f));
+            DrawRectangle(barX, barY, (int)(barWidth * hpPercent), barHeight, hpColor);
+            DrawRectangleLines(barX, barY, barWidth, barHeight, WHITE);
+            // Move HP text below the bar, still above the enemy sprite
+            DrawText(TextFormat("%d / %d", enemy.currentHp, enemy.maxHp), barX, barY + 8, 16, WHITE);
+
+            if (enemy.isDown) DrawText("DOWN", (int)x, (int)(y+90), 20, SKYBLUE);
         }
 
         // Bottom UI Panel (bottom-right half, shows only mLog)
@@ -754,6 +847,12 @@ void CombatScene::initialise() {
                 float bounce = sinf(GetTime() * 5.0f) * 10.0f;
                 DrawTexture(mUiCursor, ex + 20, ey - 60 + bounce, WHITE);
             }
+        }
+        // --- RENDER FLOATING DAMAGE TEXTS ---
+        for (const FloatingText& ft : mFloatingTexts) {
+            float alpha = 1.0f - (ft.elapsed / ft.lifetime);
+            Color c = ft.color; c.a = (unsigned char)(alpha * 255);
+            DrawText(ft.text.c_str(), (int)ft.pos.x, (int)ft.pos.y, 20, c);
         }
         // --- RENDER EFFECT OVERLAY ---
         if (mEffects) mEffects->render();

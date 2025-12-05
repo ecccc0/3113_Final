@@ -166,6 +166,30 @@ void LevelOne::initialise()
         mGameState.worldEnemies[0].setPatrolTarget({ startPos.x, startPos.y + 80.0f });
         mGameState.worldEnemies[0].setDirection(DOWN);
         mGameState.worldEnemies[0].setSpeed(80);
+
+        // --- Enemy Atlas/Animation Setup (guard if file missing) ---
+        // 1. Load the Atlas
+        mGameState.worldEnemies[0].setTexture("assets/enemy_atlas.png");
+         mGameState.worldEnemies[0].setTextureType(ATLAS);
+
+        // 2. Grid is 256x75 total, 32x25 frame -> 8 Cols, 3 Rows
+        mGameState.worldEnemies[0].setSpriteSheetDimensions({ 3, 8 });
+
+        // 3. Define Animations (Move frames 4-7 for all movement)
+        std::map<Direction, std::vector<int>> enemyAnim = {
+            { LEFT,    { 4, 5, 6, 7 } },
+            { RIGHT,   { 4, 5, 6, 7 } }, // Will be flipped by render logic
+            { UP,      { 4, 5, 6, 7 } },
+            { DOWN,    { 4, 5, 6, 7 } },
+            { NEUTRAL, { 0, 1, 2, 3 } } // Idle frames
+        };
+        mGameState.worldEnemies[0].setAnimationAtlas(enemyAnim);
+            // 4. Sprite faces LEFT natively
+            mGameState.worldEnemies[0].setSourceFacing(true);
+
+            // 5. Optional scale up if 32x25 too small
+            mGameState.worldEnemies[0].setScale({ 64.0f, 50.0f });
+        
     } else {
         mGameState.enemyCount = 0;
         mGameState.worldEnemies = nullptr;

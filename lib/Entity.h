@@ -65,6 +65,10 @@ private:
     Vector2 mPatrolTarget;     // Current patrol waypoint
     float   mWaitTimer = 0.0f; // Time waiting at a waypoint
 
+    // Sprite facing source orientation. If false, source faces Right (default);
+    // if true, source faces Left (new enemy asset).
+    bool mSpriteFacesLeft = false; // NEW: Defaults to false (Standard Right-facing)
+
     // Follower System: Breadcrumbs
     std::deque<Vector2> mPositionHistory; 
 
@@ -185,6 +189,9 @@ public:
     void setAIType(AIType newType)              { mAIType = newType;                       }
     void setStartPosition(Vector2 pos)          { mStartPosition = pos;                    }
     void setPatrolTarget(Vector2 pos)           { mPatrolTarget  = pos;                    }
+
+    // NEW Setter: configure sprite source facing direction
+    void setSourceFacing(bool facesLeft) { mSpriteFacesLeft = facesLeft; }
 
     // Advanced follower physics (tether + separation + jitter + integration)
     void updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& followers,

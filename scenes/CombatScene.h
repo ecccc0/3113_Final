@@ -67,6 +67,23 @@ private:
 
     // --- PARTY VISUAL SPRITES ---
     std::vector<Entity*> mPartySprites;
+
+    // --- ENEMY ATLAS ---
+    Texture2D mEnemyAtlas; // NEW: combat enemy sprite atlas
+
+    // Helper: compute source rect based on combat state
+    Rectangle GetEnemyFrameRect(Combatant& enemy, CombatState state, float timer);
+
+    // --- DAMAGE FLOATING TEXT ---
+    struct FloatingText {
+        Vector2 pos;
+        std::string text;
+        Color color;
+        float lifetime;   // seconds remaining
+        float elapsed;    // seconds elapsed
+    };
+    std::vector<FloatingText> mFloatingTexts;
+    void SpawnFloatingText(Vector2 pos, const std::string& text, Color color, float lifetime = 0.8f);
 };
 
 #endif
