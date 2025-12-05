@@ -1,6 +1,8 @@
 #include "LevelThree.h"
 #include "../lib/Effects.h"
 #include "../lib/GameData.h"
+#include <raylib.h>
+extern float gMusicVolume;
 #include <cmath>
 
 extern int gCurrentLevelIndex;
@@ -138,10 +140,19 @@ void LevelThree::initialise()
     mEffects = new Effects(mOrigin, 1000.0f, 600.0f);
     mEffects->setEffectSpeed(2.0f);
     mIsTransitioning = false;
+
+    // --- BGM: Level Exploration (same track) ---
+    if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
+    if (FileExists("assets/audio/levelmusic.mp3")) {
+        mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
+        SetMusicVolume(mGameState.bgm, gMusicVolume);
+        PlayMusicStream(mGameState.bgm);
+    }
 }
 
 void LevelThree::update(float deltaTime)
 {
+    if (mGameState.bgm.ctxData) { SetMusicVolume(mGameState.bgm, gMusicVolume); UpdateMusicStream(mGameState.bgm); }
     // Player update & map interaction (guard against nulls)
     if (mGameState.player) {
         mGameState.player->update(deltaTime, mGameState.player, mGameState.map, mWorldProps, mPropCount);

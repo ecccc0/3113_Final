@@ -1,6 +1,8 @@
 #include "LevelTwo.h"
 #include "../lib/Effects.h"
 #include "../lib/GameData.h"
+#include <raylib.h>
+extern float gMusicVolume;
 #include <cmath>
 
 extern int gCurrentLevelIndex;
@@ -233,10 +235,19 @@ void LevelTwo::initialise()
     mEffects = new Effects(mOrigin, 1000.0f, 600.0f);
     mEffects->setEffectSpeed(2.0f);
     mIsTransitioning = false;
+
+    // --- BGM: Level Exploration ---
+    if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
+    if (FileExists("assets/audio/levelmusic.mp3")) {
+        mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
+        SetMusicVolume(mGameState.bgm, gMusicVolume);
+        PlayMusicStream(mGameState.bgm);
+    }
 }
 
 void LevelTwo::update(float deltaTime)
 {
+    if (mGameState.bgm.ctxData) { SetMusicVolume(mGameState.bgm, gMusicVolume); UpdateMusicStream(mGameState.bgm); }
     if (mIsTransitioning)
     {
         Vector2 camTarget = mGameState.camera.target;

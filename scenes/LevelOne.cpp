@@ -2,6 +2,7 @@
 #include "../lib/Effects.h" // Include full definition here
 #include "../lib/GameData.h" // Loot helpers
 #include <cmath> // atan2f for debug cone rendering
+extern float gMusicVolume;
 
 // --- LEVEL DATA ---
 
@@ -119,6 +120,14 @@ void LevelOne::initialise()
     mFollowers.push_back(noir);
 
 
+    // --- BGM: Level Exploration ---
+    if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
+    if (FileExists("assets/audio/levelmusic.mp3")) {
+        mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
+        SetMusicVolume(mGameState.bgm, gMusicVolume);
+        PlayMusicStream(mGameState.bgm);
+    }
+
     // 3. CREATE ENEMIES (guards) ONLY IF NOT DEFEATED
     // Expand to multiple guards at specified positions
     std::vector<Vector2> guardPositions = {
@@ -210,10 +219,20 @@ void LevelOne::initialise()
     mEffects->setEffectSpeed(2.0f); // Fast Fade (0.5 seconds)
 
     mIsTransitioning = false;
+
+    // --- BGM: Level Exploration ---
+    if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
+    if (FileExists("assets/audio/levelmusic.mp3")) {
+        mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
+        SetMusicVolume(mGameState.bgm, gMusicVolume);
+        PlayMusicStream(mGameState.bgm);
+    }
 }
 
 void LevelOne::update(float deltaTime)
 {
+    // Keep exploration music streaming
+    if (mGameState.bgm.ctxData) { SetMusicVolume(mGameState.bgm, gMusicVolume); UpdateMusicStream(mGameState.bgm); }
     // --- 1. HANDLE TRANSITION SEQUENCE ---
     if (mIsTransitioning)
     {
@@ -407,4 +426,15 @@ void LevelOne::render()
     if (mEffects) mEffects->render();
 
 
+}
+
+void LevelOne::shutdown()
+{
+    // Stop and unload exploration music when leaving the scene
+    if (mGameState.bgm.ctxData) {
+        StopMusicStream(mGameState.bgm);
+        UnloadMusicStream(mGameState.bgm);
+        // Reset the bgm handle to a null state
+        mGameState.bgm.ctxData = nullptr;
+    }
 }

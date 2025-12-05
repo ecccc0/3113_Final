@@ -16,7 +16,7 @@ public:
     void initialise() override;
     void update(float deltaTime) override;
     void render() override;
-    void shutdown() override {}; 
+    void shutdown() override; 
 private:
     // Level-specific enemy defeat flags cached locally for convenience
     // (Mirror of global gSceneEnemyDefeated[sceneIndex])

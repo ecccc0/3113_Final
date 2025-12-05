@@ -8,6 +8,7 @@
 extern Texture2D gPartyIcons[4];
 // Access global SFX volume
 extern float gSFXVolume;
+extern float gMusicVolume;
 
 // CombatScene should use its own GameState.party rather than the global gParty
 
@@ -188,6 +189,14 @@ void CombatScene::initialise() {
         if (mSndHeal.frameCount) SetSoundVolume(mSndHeal, gSFXVolume);
         if (mSndHit.frameCount)  SetSoundVolume(mSndHit,  gSFXVolume);
         if (mSndCrit.frameCount) SetSoundVolume(mSndCrit, gSFXVolume);
+        // --- BGM ---
+        {
+            if (FileExists("assets/audio/combatmusic.mp3")) {
+                mGameState.bgm = LoadMusicStream("assets/audio/combatmusic.mp3");
+                SetMusicVolume(mGameState.bgm, gMusicVolume);
+                PlayMusicStream(mGameState.bgm);
+            }
+        }
 }
 
     void CombatScene::shutdown() {
@@ -206,6 +215,7 @@ void CombatScene::initialise() {
         mPartySprites.clear();
         // Unload enemy atlas
         UnloadTexture(mEnemyAtlas);
+        if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
 
         // Unload SFX
         if (mSndMenu.frameCount) UnloadSound(mSndMenu);

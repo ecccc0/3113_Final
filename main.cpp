@@ -651,6 +651,11 @@ void processInput()
 void update() 
 {
     // Keep music updating if desired; world updates only when not paused
+    // Always update current scene music stream if valid
+    if (gCurrentScene && gCurrentScene->getState().bgm.ctxData) {
+        UpdateMusicStream(gCurrentScene->getState().bgm);
+        SetMusicVolume(gCurrentScene->getState().bgm, gMusicVolume);
+    }
     if (gGameStatus != PAUSED) {
         float ticks = (float) GetTime();
         float deltaTime = ticks - gPreviousTicks;
@@ -663,6 +668,22 @@ void update()
         }
         if (gTransitionPhase == T_SWITCH) {
             if (gPendingSceneID >= 0) {
+                // Apply party stat boosts exactly once at the actual switch moment
+                if (gCurrentLevelIndex == IDX_LEVEL_ONE && gPendingSceneID == IDX_LEVEL_TWO) {
+                    const int hpBoost = 30;
+                    const int spBoost = 15;
+                    const int atkBoost = 10;
+                    const int defBoost = 8;
+                    for (auto &m : gParty) {
+                        m.maxHp += hpBoost;
+                        m.currentHp = std::min(m.currentHp + hpBoost, m.maxHp);
+                        m.maxSp += spBoost;
+                        m.currentSp = std::min(m.currentSp + spBoost, m.maxSp);
+                        m.baseAttack += atkBoost;
+                        m.baseDefense += defBoost;
+                    }
+                }
+
                 gCurrentScene->shutdown();
                 switchToScene(gPendingSceneID);
                 // Set game status based on target
@@ -1108,7 +1129,7 @@ void render()
     EndDrawing();
 }
 
-void Shutdown() 
+void shutdown() 
 {
     gShader.unload();
     // Unload HUD icons
@@ -1150,8 +1171,10 @@ int main()
         update();
 
         // Scene Switching Logic (Keep existing logic)
-        if (gCurrentScene->getState().nextSceneID != -1) {
-             int nextID = gCurrentScene->getState().nextSceneID;
+           if (gCurrentScene->getState().nextSceneID != -1) {
+               int nextID = gCurrentScene->getState().nextSceneID;
+               // Reset the request immediately to avoid reprocessing on subsequent frames
+               gCurrentScene->getState().nextSceneID = -1;
              
              // Pass Party State to Combat
             if (nextID == IDX_COMBAT) { 
@@ -1187,26 +1210,6 @@ int main()
                 switchToScene(nextID);
                 gGameStatus = TITLE;
             } else {
-                // Apply party stat boosts when progressing to next level
-                // Example: from Level One -> Level Two grants a boost
-                if (gCurrentLevelIndex == IDX_LEVEL_ONE && nextID == IDX_LEVEL_TWO) {
-                    const int hpBoost = 30;
-                    const int spBoost = 15;
-                    const int atkBoost = 10;
-                    const int defBoost = 8;
-                    const int spdBoost = 2;
-                    for (auto &m : gParty) {
-                        m.maxHp += hpBoost;
-                        m.currentHp += hpBoost; // heal and extend
-                        if (m.currentHp > m.maxHp) m.currentHp = m.maxHp;
-                        m.maxSp += spBoost;
-                        m.currentSp += spBoost;
-                        if (m.currentSp > m.maxSp) m.currentSp = m.maxSp;
-                        m.baseAttack += atkBoost;
-                        m.baseDefense += defBoost;
-                        // speed boost removed (stat unused)
-                    }
-                }
                 gPendingSceneID = nextID;
                 gTransitionPhase = T_FADE_OUT;
             }
