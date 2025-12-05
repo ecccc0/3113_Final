@@ -900,8 +900,8 @@ int main()
     initialise();
 
     // Scene Setup
-    gLevels.push_back(new LevelOne({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new LevelTwo({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
+    gLevels.push_back(new LevelOne({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new CombatScene({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     
     gSceneEnemyDefeated.resize(gLevels.size());

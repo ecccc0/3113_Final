@@ -159,6 +159,15 @@ void CombatScene::initialise() {
         // Center camera roughly on the battle (assuming fixed positions in render)
         mGameState.camera.target = { 500.0f, 300.0f }; // Center of screen
 
+        // --- COMBAT MAP SETUP ---
+        // Build a small arena map using CombatScene::mLevelData
+        if (mGameState.map) { delete mGameState.map; mGameState.map = nullptr; }
+        mGameState.map = new Map(20, 20, mLevelData, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
+        // Reveal entire arena to avoid fog overlay in combat
+        if (mGameState.map) {
+            mGameState.map->revealTiles(mOrigin, 2000.0f);
+        }
+
         // Load enemy atlas for combat sprites
         if (FileExists("assets/enemy_atlas.png")) {
             mEnemyAtlas = LoadTexture("assets/enemy_atlas.png");
@@ -221,11 +230,7 @@ void CombatScene::initialise() {
         }
 
         // Smoothly Zoom Out to 1.0f
-        if (mGameState.camera.zoom > 1.0f) {
-            // "Quicker zoom out" - faster speed than zoom in
-            mGameState.camera.zoom -= 4.0f * deltaTime; 
-            if (mGameState.camera.zoom < 1.0f) mGameState.camera.zoom = 1.0f;
-        }
+        
         bool enemiesAlive = false;
         for (auto& e : mGameState.battleEnemies) if (e.isAlive) enemiesAlive = true;
         if (!enemiesAlive) {
@@ -584,6 +589,9 @@ void CombatScene::initialise() {
     void CombatScene::render() {
         ClearBackground(BLACK);
 
+            // Draw combat arena tiles first (background)
+            if (mGameState.map) mGameState.map->render();
+
             // 1. Draw Party Sprites (Visuals) - left of center, vertical lineup
             for (int i = 0; i < (int)mPartySprites.size(); i++) {
                 float spriteX = 340.0f;            // fixed x left of center
@@ -715,6 +723,7 @@ void CombatScene::initialise() {
         }
 
         // Bottom UI Panel (bottom-right half, shows only mLog)
+        DrawRectangle(500, 500, 500, 100, Fade(DARKGRAY, 0.85f));
         DrawRectangleLines(500, 500, 500, 100, WHITE);
         DrawText(mLog.c_str(), 520, 510, 20, WHITE);
 
@@ -723,6 +732,7 @@ void CombatScene::initialise() {
 
         if (mState == PLAYER_TURN_MAIN) {
             // Move context-aware control & action hints to top-right corner
+            DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
             DrawText("[UP/DOWN] Rotate  [Z/SPACE] Select", 650, 20, 18, LIGHTGRAY);
             DrawText("Select an action.", 650, 45, 18, DARKGRAY);
         }
@@ -749,6 +759,7 @@ void CombatScene::initialise() {
             }
 
             // Hints in top-right
+            DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
             DrawText("[UP/DOWN] Navigate", 650, 20, 18, LIGHTGRAY);
             DrawText("[Z] Confirm  [C] Back", 650, 45, 18, LIGHTGRAY);
         }
@@ -769,6 +780,7 @@ void CombatScene::initialise() {
                 DrawText(TextFormat("Action: %s (Dmg %d, %d %s)", chosen.name.c_str(), chosen.damage, chosen.cost, costType), 20, 535, 18, YELLOW);
             }
             // Hints in top-right
+            DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
             DrawText("[LEFT/RIGHT] Target", 650, 20, 18, LIGHTGRAY);
             DrawText("[Z] Confirm  [C] Cancel", 650, 45, 18, LIGHTGRAY);
         }
@@ -792,13 +804,16 @@ void CombatScene::initialise() {
                 DrawText(TextFormat("Healing: %s (Heals %d HP, %d %s)", chosen.name.c_str(), -chosen.damage, chosen.cost, costType), 20, 535, 18, SKYBLUE);
             }
             // Hints in top-right
+            DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
             DrawText("[UP/DOWN] Select Ally", 650, 20, 18, LIGHTGRAY);
             DrawText("[Z] Confirm  [C] Cancel", 650, 45, 18, LIGHTGRAY);
         }
         else if (mState == ENEMY_TURN) {
+            DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
             DrawText("Enemy Phase...", 650, 20, 18, DARKGRAY);
         }
         else if (mState == ANIMATION_WAIT) {
+            DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
             DrawText("Resolving action...", 650, 20, 18, DARKGRAY);
         }
         else if (mState == PLAYER_TURN_ITEM) {
