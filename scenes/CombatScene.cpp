@@ -1,5 +1,6 @@
 #include "CombatScene.h"
 #include "../lib/Effects.h"
+#include "../lib/GameData.h" // for getRandomEnemyForLevel
 #include <cmath>
 #include "raymath.h"
 
@@ -80,23 +81,31 @@ void CombatScene::initialise() {
             member.isDown = false;
         }
 
-        // Encounter generation could depend on engagedEnemyIndex
-        // For prototype keep two test enemies; future improvement: load from level data
+        // Dynamic encounter generation based on the level that triggered combat
         mGameState.battleEnemies.clear();
-        Combatant shadow1;
-        shadow1.name = "Pixie";
-        shadow1.maxHp = 80; shadow1.currentHp = 80;
-        shadow1.baseAttack = 10; shadow1.baseDefense = 5;
-        shadow1.isAlive = true;
-        shadow1.weaknesses = { GUN, ICE, CURSE };
-        mGameState.battleEnemies.push_back(shadow1);
-        Combatant shadow2;
-        shadow2.name = "Jack";
-        shadow2.maxHp = 120; shadow2.currentHp = 120;
-        shadow2.baseAttack = 15; shadow2.baseDefense = 8;
-        shadow2.isAlive = true;
-        shadow2.weaknesses = { WIND };
-        mGameState.battleEnemies.push_back(shadow2);
+
+        int levelIdx = mGameState.returnSceneID; // 0: Level 1, 1: Level 2, 2: Mini-boss
+        int enemyCount = (levelIdx == 0) ? 2 : 3; // L1: 2 enemies, L2+: 3 enemies
+
+        if (levelIdx == 2) {
+            // Mini-boss: Boss + 2 minions from Level 1 pool
+            Combatant boss = getEnemyData(99);
+            mGameState.battleEnemies.push_back(boss);
+            for (int i = 0; i < 2; ++i) {
+                Combatant minion = getRandomEnemyForLevel(0);
+                mGameState.battleEnemies.push_back(minion);
+            }
+        } else {
+            for (int i = 0; i < enemyCount; ++i) {
+                Combatant enemy = getRandomEnemyForLevel(levelIdx);
+                mGameState.battleEnemies.push_back(enemy);
+            }
+        }
+
+        // Assign on-screen positions to avoid overlap in UI
+        for (int i = 0; i < (int)mGameState.battleEnemies.size(); ++i) {
+            mGameState.battleEnemies[i].position = { 600.0f + (i * 120.0f), 200.0f };
+        }
 
         // --- LOAD UI ASSETS ---
         mIconAttack = LoadTexture("assets/ui/icon_attack.png");

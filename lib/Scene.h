@@ -51,6 +51,10 @@ struct GameState
     std::vector<bool> defeatedEnemies;
 
     int shaderStatus = 0; // 0 = normal, 1 = spotted, 2 = hidden
+
+    // UI Toast for item acquisition
+    std::string itemToast = "";
+    float itemToastTimer = 0.0f; // seconds remaining
 };
 
 class Scene 

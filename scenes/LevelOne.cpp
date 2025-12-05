@@ -1,35 +1,10 @@
 #include "LevelOne.h"
 #include "../lib/Effects.h" // Include full definition here
+#include "../lib/GameData.h" // Loot helpers
 #include <cmath> // atan2f for debug cone rendering
 
 // --- LEVEL DATA ---
 
-unsigned int LEVEL_1_DATA[] =
-{
-    // 1 = Wall, 2 = Floor, 0 = nothing/transparent
-    // Expanded to 20x20 (was 14x10), with a cross wall in the center
-
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-};
 
 // Defeated enemies are tracked per scene in mGameState.defeatedEnemies now.
 extern int gCurrentLevelIndex; // used to set returnSceneID during combat transitions
@@ -50,13 +25,15 @@ void LevelOne::initialise()
         }
         mFollowers.clear();
     }
+    // Clean previous props array
+    if (mWorldProps) { delete[] mWorldProps; mWorldProps = nullptr; mPropCount = 0; }
 
     // 1. LOAD MAP (only allocate once; recreate each initialise for simplicity)
     if (mGameState.map) {
         delete mGameState.map;
         mGameState.map = nullptr;
     }
-    mGameState.map = new Map(20, 20, LEVEL_1_DATA, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
+    mGameState.map = new Map(50, 50, mLevelData, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
 
     // 1b. DEFINE WALKING ANIMATION ATLAS (5 cols x 4 rows)
     std::map<Direction, std::vector<int>> walkingAnimation = {
@@ -145,54 +122,90 @@ void LevelOne::initialise()
     if (mGameState.defeatedEnemies.size() < 1)
         mGameState.defeatedEnemies.resize(1, false);
 
-    // 3. CREATE ENEMY ONLY IF NOT DEFEATED
-    bool enemy0Defeated = (!mGameState.defeatedEnemies.empty() && mGameState.defeatedEnemies[0]);
-    if (!enemy0Defeated) {
-        mGameState.enemyCount = 1;
+    // 3. CREATE ENEMIES (guards) ONLY IF NOT DEFEATED
+    // Expand to multiple guards at specified positions
+    std::vector<Vector2> guardPositions = {
+        { 570.0f,  170.0f },
+        { 784.0f,  688.0f },
+        { 272.0f,  688.0f },
+        { -23.0f,  344.0f}
+    };
+    // Resize defeated flags to match guard count
+    if (mGameState.defeatedEnemies.size() < guardPositions.size()) {
+        mGameState.defeatedEnemies.resize(guardPositions.size(), false);
+    }
+
+    // Count remaining (not defeated) enemies
+    int activeCount = 0;
+    for (size_t i = 0; i < guardPositions.size(); ++i) {
+        if (!mGameState.defeatedEnemies[i]) activeCount++;
+    }
+
+    if (activeCount > 0) {
+        mGameState.enemyCount = activeCount;
         mGameState.worldEnemies = new Entity[mGameState.enemyCount];
-        mGameState.worldEnemies[0] = Entity();
-        mGameState.worldEnemies[0].setPosition({ 600.0f, 200.0f });
-        mGameState.worldEnemies[0].setScale({ 32.0f, 32.0f });
-        mGameState.worldEnemies[0].setColliderDimensions({ 32.0f, 32.0f });
-        mGameState.worldEnemies[0].setTexture("assets/enemy_shadow.png");
-        mGameState.worldEnemies[0].setEntityType(NPC);
-        mGameState.worldEnemies[0].activate();
-        mGameState.worldEnemies[0].setAcceleration({ 0.0f, 0.0f });
-        mGameState.worldEnemies[0].setAIType(AI_GUARD);
-        mGameState.worldEnemies[0].setAIState(PATROLLING);
-        // Initialise patrol route (simple horizontal ping-pong)
-        Vector2 startPos = mGameState.worldEnemies[0].getPosition();
-        mGameState.worldEnemies[0].setStartPosition(startPos);
-        mGameState.worldEnemies[0].setPatrolTarget({ startPos.x, startPos.y + 80.0f });
-        mGameState.worldEnemies[0].setDirection(DOWN);
-        mGameState.worldEnemies[0].setSpeed(80);
 
-        // --- Enemy Atlas/Animation Setup (guard if file missing) ---
-        // 1. Load the Atlas
-        mGameState.worldEnemies[0].setTexture("assets/enemy_atlas.png");
-         mGameState.worldEnemies[0].setTextureType(ATLAS);
+        int w = 0;
+        for (size_t i = 0; i < guardPositions.size(); ++i) {
+            if (mGameState.defeatedEnemies[i]) continue;
+            mGameState.worldEnemies[w] = Entity();
+            mGameState.worldEnemies[w].setPosition(guardPositions[i]);
+            mGameState.worldEnemies[w].setScale({ 32.0f, 32.0f });
+            mGameState.worldEnemies[w].setColliderDimensions({ 32.0f, 32.0f });
+            mGameState.worldEnemies[w].setTexture("assets/enemy_atlas.png");
+            mGameState.worldEnemies[w].setTextureType(ATLAS);
+            mGameState.worldEnemies[w].setEntityType(NPC);
+            mGameState.worldEnemies[w].activate();
+            mGameState.worldEnemies[w].setAcceleration({ 0.0f, 0.0f });
+            mGameState.worldEnemies[w].setAIType(AI_GUARD);
+            mGameState.worldEnemies[w].setAIState(PATROLLING);
 
-        // 2. Grid is 256x75 total, 32x25 frame -> 8 Cols, 3 Rows
-        mGameState.worldEnemies[0].setSpriteSheetDimensions({ 3, 8 });
+            // Basic patrol: small vertical ping-pong from starting pos
+            Vector2 startPos = mGameState.worldEnemies[w].getPosition();
+            mGameState.worldEnemies[w].setStartPosition(startPos);
+            mGameState.worldEnemies[w].setPatrolTarget({ startPos.x, startPos.y + 80.0f });
+            mGameState.worldEnemies[w].setDirection(DOWN);
+            mGameState.worldEnemies[w].setSpeed(80);
 
-        // 3. Define Animations (Move frames 4-7 for all movement)
-        std::map<Direction, std::vector<int>> enemyAnim = {
-            { LEFT,    { 4, 5, 6, 7 } },
-            { RIGHT,   { 4, 5, 6, 7 } }, // Will be flipped by render logic
-            { UP,      { 4, 5, 6, 7 } },
-            { DOWN,    { 4, 5, 6, 7 } },
-            { NEUTRAL, { 0, 1, 2, 3 } } // Idle frames
-        };
-        mGameState.worldEnemies[0].setAnimationAtlas(enemyAnim);
-            // 4. Sprite faces LEFT natively
-            mGameState.worldEnemies[0].setSourceFacing(true);
-
-            // 5. Optional scale up if 32x25 too small
-            mGameState.worldEnemies[0].setScale({ 64.0f, 50.0f });
-        
+            // Atlas setup: 3 rows x 8 cols, move frames 4-7
+            mGameState.worldEnemies[w].setSpriteSheetDimensions({ 3, 8 });
+            std::map<Direction, std::vector<int>> enemyAnim = {
+                { LEFT,    { 4, 5, 6, 7 } },
+                { RIGHT,   { 4, 5, 6, 7 } },
+                { UP,      { 4, 5, 6, 7 } },
+                { DOWN,    { 4, 5, 6, 7 } },
+                { NEUTRAL, { 0, 1, 2, 3 } }
+            };
+            mGameState.worldEnemies[w].setAnimationAtlas(enemyAnim);
+            mGameState.worldEnemies[w].setSourceFacing(true);
+            mGameState.worldEnemies[w].setScale({ 64.0f, 50.0f });
+            w++;
+        }
     } else {
         mGameState.enemyCount = 0;
         mGameState.worldEnemies = nullptr;
+    }
+
+    // 3b. CREATE CHEST PROPS (array form for collisions)
+    std::vector<Vector2> chestPositions = {
+        { 867.0f,  176.0f },
+        { 612.0f, 653.0f },
+        { 37.0f, 218.0f },
+        { 515.0f, -265.0f }
+    };
+    mPropCount = static_cast<int>(chestPositions.size());
+    mWorldProps = new Entity[mPropCount];
+    for (int i = 0; i < mPropCount; ++i) {
+        mWorldProps[i] = Entity();
+        mWorldProps[i].setEntityType(PROP);
+        mWorldProps[i].setIsChest(true);
+        mWorldProps[i].setPosition(chestPositions[i]);
+        mWorldProps[i].setScale({ 28.0f, 28.0f });
+        mWorldProps[i].setColliderDimensions({ 28.0f, 28.0f });
+        mWorldProps[i].setTexture("assets/chest.png");
+        mWorldProps[i].setTint(GOLD);
+        mWorldProps[i].activate();
+        mWorldProps[i].setAcceleration({0.0f,0.0f});
     }
 
     // 4. SETUP CAMERA
@@ -234,7 +247,8 @@ void LevelOne::update(float deltaTime)
 
     // --- 2. STANDARD UPDATE (Keep existing logic) ---
     // --- PLAYER UPDATE & MAP INTERACTION ---
-    mGameState.player->update(deltaTime, mGameState.player, mGameState.map, NULL, 0);
+    // Let player collide against props for tactile interaction
+    mGameState.player->update(deltaTime, mGameState.player, mGameState.map, mWorldProps, mPropCount);
     if (mGameState.map && mGameState.player)
     {
         Vector2 pPos = mGameState.player->getPosition();
@@ -257,6 +271,39 @@ void LevelOne::update(float deltaTime)
     const float SIGHT_DISTANCE  = 100.0f;
     const float SIGHT_ANGLE     = 90.0f; // Full cone angle
     bool isSpotted = false; // Aggregate spotted state (for shader/effects)
+
+    // --- PROP INTERACTION (CHESTS) ---
+    if (IsKeyPressed(KEY_SPACE)) {
+        Entity* player = mGameState.player;
+        for (int i = 0; i < mPropCount; ++i) {
+            Entity* prop = &mWorldProps[i];
+            if (!prop->isActive() || !prop->isChest()) continue;
+            float dist = Vector2Distance(player->getPosition(), prop->getPosition());
+            if (dist < 50.0f) {
+                // Use player's sight cone to validate facing the chest
+                if (player->isEntityInSight(prop, 60.0f, 60.0f)) {
+                    Item loot = getRandomChestItem(0);
+                    mGameState.inventory.push_back(loot);
+                    // Set global toast notification (2 seconds)
+                    mGameState.itemToast = std::string("Obtained: ") + loot.name;
+                    mGameState.itemToastTimer = 2.0f;
+                    prop->deactivate();
+                }
+            }
+        }
+    }
+
+    // --- PROGRESSION: Advance when all chests are opened ---
+    {
+        bool allChestsOpened = true;
+        for (int i = 0; i < mPropCount; ++i) {
+            Entity* prop = &mWorldProps[i];
+            if (prop->isChest() && prop->isActive()) { allChestsOpened = false; break; }
+        }
+        if (allChestsOpened) {
+            mGameState.nextSceneID = 1; // LevelTwo
+        }
+    }
 
     // --- ENEMY UPDATE & COMBAT TRIGGERS ---
     for (int i = 0; i < mGameState.enemyCount; i++)
@@ -334,6 +381,11 @@ void LevelOne::render()
     // Draw Room
     if (mGameState.map) mGameState.map->render();
 
+    // Draw Props (chests)
+    for (int i = 0; i < mPropCount; ++i) {
+        if (mWorldProps[i].isActive()) mWorldProps[i].render();
+    }
+
     // Draw Enemies
     for (int i = 0; i < mGameState.enemyCount; i++)
     {
@@ -364,4 +416,6 @@ void LevelOne::render()
 
     // RENDER EFFECT OVERLAY (Draws black rect over camera view)
     if (mEffects) mEffects->render();
+
+
 }

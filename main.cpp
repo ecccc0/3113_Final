@@ -2,6 +2,7 @@
 #include "lib/GameTypes.h"
 #include "lib/GameData.h"
 #include "scenes/LevelOne.h"
+#include "scenes/LevelTwo.h"
 #include "scenes/CombatScene.h"
 #include "lib/ShaderProgram.h"
 #include <iostream>
@@ -497,6 +498,13 @@ void update()
         gPreviousTicks  = ticks;
 
         gCurrentScene->update(deltaTime);
+
+        // Tick down global item toast timer
+        GameState& st = gCurrentScene->getState();
+        if (st.itemToastTimer > 0.0f) {
+            st.itemToastTimer -= deltaTime;
+            if (st.itemToastTimer < 0.0f) st.itemToastTimer = 0.0f;
+        }
     }
 }
 
@@ -561,6 +569,18 @@ void render()
             DrawText(TextFormat("SP %d / %d", m.currentSp, m.maxSp), baseX + 8, startY + 22, 12, WHITE);
 
             startY += 92;
+        }
+
+        // --- DEBUG HUD: Player world position (top-right) ---
+        if (gGameStatus == EXPLORATION && gCurrentScene->getState().player) {
+            Vector2 p = gCurrentScene->getState().player->getPosition();
+            const int fontSize = 18;
+            char buf[128];
+            snprintf(buf, sizeof(buf), "Pos: (%.0f, %.0f)", p.x, p.y);
+            int tw = MeasureText(buf, fontSize);
+            int x = SCREEN_WIDTH - tw - 12;
+            int y = 8;
+            DrawText(buf, x, y, fontSize, LIGHTGRAY);
         }
     }
     // 2. STATIC SCENES: Menu, Combat, Game Over
@@ -848,6 +868,16 @@ void render()
         }
     }
 
+    // GLOBAL TOAST: Item acquisition (bottom-right, 2s)
+    const GameState& st = gCurrentScene->getState();
+    if (st.itemToastTimer > 0.0f && !st.itemToast.empty()) {
+        int fontSize = 20;
+        int tw = MeasureText(st.itemToast.c_str(), fontSize);
+        int x = SCREEN_WIDTH - tw - 20;
+        int y = SCREEN_HEIGHT - 30;
+        DrawText(st.itemToast.c_str(), x, y, fontSize, WHITE);
+    }
+
     EndDrawing();
 }
 
@@ -871,7 +901,7 @@ int main()
 
     // Scene Setup
     gLevels.push_back(new LevelOne({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
-    gLevels.push_back(nullptr); // Placeholder
+    gLevels.push_back(new LevelTwo({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new CombatScene({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     
     gSceneEnemyDefeated.resize(gLevels.size());

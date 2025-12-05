@@ -199,7 +199,13 @@ bool Entity::isColliding(Entity *other) const
 
 void Entity::animate(float deltaTime)
 {
-    mAnimationIndices = mAnimationAtlas.at(mDirection);
+    auto it = mAnimationAtlas.find(mDirection);
+    if (it != mAnimationAtlas.end()) {
+        mAnimationIndices = it->second;
+    } else if (!mAnimationAtlas.empty()) {
+        auto rt = mAnimationAtlas.find(RIGHT);
+        mAnimationIndices = (rt != mAnimationAtlas.end()) ? rt->second : mAnimationAtlas.begin()->second;
+    }
 
     mAnimationTime += deltaTime;
     float framesPerSecond = 1.0f / mFrameSpeed;
@@ -232,9 +238,14 @@ void Entity::aiExecute(Entity* player, Map* map, float deltaTime)
         if (mAIState == CHASING) aiChase(player, deltaTime);
         break;
 
-    case AI_TRAP:
-        // Reuse patrol for simple hazard movement
+    case AI_SEARCHLIGHT:
+        // Patrol behavior, longer/narrower vision cone to trigger alarm
         aiPatrol(deltaTime);
+        if (player && isEntityInSight(player, 150.0f, 45.0f)) {
+            // No combat trigger; set global alarm via player timer
+            player->setAlarmTimer(6.0f);
+            mAIState = AI_AWAKENED;
+        }
         break;
     default:
         break;
@@ -370,6 +381,11 @@ void Entity::update(float deltaTime, Entity *player, Map *map,
     Entity *collidableEntities, int collisionCheckCount)
 {
     if (isActive()) {
+        // Tick down alarm timer (used on Player)
+        if (mAlarmTimer > 0.0f) {
+            mAlarmTimer -= deltaTime;
+            if (mAlarmTimer < 0.0f) mAlarmTimer = 0.0f;
+        }
         // Phase 3: central AI hook
         if (mEntityType == NPC) {
             aiExecute(player, map, deltaTime);

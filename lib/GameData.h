@@ -176,21 +176,133 @@ inline Combatant getEnemyData(int id) {
             enemy.name = "Pixie";
             enemy.maxHp = 50; enemy.currentHp = 50;
             enemy.baseAttack = 10;
+            enemy.baseDefense = 4;
             enemy.weaknesses = { GUN, ICE, CURSE };
             break;
         case 1: // Jack Frost
             enemy.name = "Jack Frost";
             enemy.maxHp = 120; enemy.currentHp = 120;
             enemy.baseAttack = 15;
+            enemy.baseDefense = 6;
             enemy.weaknesses = { FIRE };
+            break;
+        case 2: // Agathion (Weak Elec)
+            enemy.name = "Agathion";
+            enemy.maxHp = 70; enemy.currentHp = 70;
+            enemy.baseAttack = 11;
+            enemy.baseDefense = 5;
+            enemy.weaknesses = { ELEC };
+            break;
+        case 3: // Bicorn (Weak Wind)
+            enemy.name = "Bicorn";
+            enemy.maxHp = 80; enemy.currentHp = 80;
+            enemy.baseAttack = 12;
+            enemy.baseDefense = 6;
+            enemy.weaknesses = { WIND };
+            break;
+        case 4: // Mandrake (Weak Fire)
+            enemy.name = "Mandrake";
+            enemy.maxHp = 85; enemy.currentHp = 85;
+            enemy.baseAttack = 12;
+            enemy.baseDefense = 6;
+            enemy.weaknesses = { FIRE };
+            break;
+        case 10: // Kelpie (Weak Elec)
+            enemy.name = "Kelpie";
+            enemy.maxHp = 110; enemy.currentHp = 110;
+            enemy.baseAttack = 14;
+            enemy.baseDefense = 7;
+            enemy.weaknesses = { ELEC };
+            break;
+        case 11: // Berith (Weak Ice)
+            enemy.name = "Berith";
+            enemy.maxHp = 140; enemy.currentHp = 140;
+            enemy.baseAttack = 18;
+            enemy.baseDefense = 9;
+            enemy.weaknesses = { ICE };
+            break;
+        case 12: // Eligor (Weak Elec)
+            enemy.name = "Eligor";
+            enemy.maxHp = 130; enemy.currentHp = 130;
+            enemy.baseAttack = 17;
+            enemy.baseDefense = 8;
+            enemy.weaknesses = { ELEC };
+            break;
+        case 13: // Hua Po (Weak Ice)
+            enemy.name = "Hua Po";
+            enemy.maxHp = 95; enemy.currentHp = 95;
+            enemy.baseAttack = 13;
+            enemy.baseDefense = 5;
+            enemy.weaknesses = { ICE };
+            break;
+        case 99: // Boss placeholder
+            enemy.name = "Shadow Boss";
+            enemy.maxHp = 400; enemy.currentHp = 400;
+            enemy.baseAttack = 30;
+            enemy.baseDefense = 12;
+            // No explicit weaknesses
             break;
         default: // Shadow
             enemy.name = "Shadow";
             enemy.maxHp = 30; enemy.currentHp = 30;
             enemy.baseAttack = 8;
+            enemy.baseDefense = 3;
             break;
     }
+    enemy.isAlive = true;
+    enemy.isDown = false;
     return enemy;
+}
+
+// Add to your existing getEnemyData function or create a new wrapper
+// IDs 0-9: Level 1 Pool, IDs 10-19: Level 2 Pool, ID 99: Boss
+inline Combatant getRandomEnemyForLevel(int levelIndex) {
+    int id = 0;
+    if (levelIndex == 0) { // Level 1 (Easier)
+        // Pool: Pixie, Agathion, Bicorn, Mandrake
+        int pool[] = { 0, 2, 3, 4 };
+        id = pool[GetRandomValue(0, 3)];
+    } else if (levelIndex == 1) { // Level 2 (Harder)
+        // Pool: Jack Frost, Kelpie, Berith, Eligor, Hua Po
+        int pool[] = { 1, 10, 11, 12, 13 };
+        id = pool[GetRandomValue(0, 4)];
+    } else {
+        id = 99; // Fallback to boss/placeholder for unknown levels
+    }
+    return getEnemyData(id);
+}
+
+// --- CHEST LOOT HELPERS ---
+inline Item getRandomChestItem(int levelIndex) {
+    if (levelIndex == 0) {
+        Item pool[] = { ITEM_MEDICINE, ITEM_SNUFF_SOUL };
+        int idx = GetRandomValue(0, 1);
+        return pool[idx];
+    } else {
+        Item pool[] = { ITEM_MEDICINE, ITEM_SNUFF_SOUL, ITEM_REVIVAL_BEAD };
+        int idx = GetRandomValue(0, 2);
+        return pool[idx];
+    }
+}
+
+inline Equipment getRandomChestEquipment(int levelIndex) {
+    if (levelIndex == 0) {
+        Equipment choices[] = {
+            MakeEquipment("Rusty Knife", EQUIP_MELEE, 6, 0, 0, PHYS, "Old but sharp"),
+            MakeEquipment("Light Pistol", EQUIP_GUN, 7, 0, 10, GUN, "Reliable sidearm"),
+            MakeEquipment("Leather Jacket", EQUIP_ARMOR, 0, 6, 0, ELEMENT_NONE, "Basic protection")
+        };
+        int idx = GetRandomValue(0, 2);
+        return choices[idx];
+    } else {
+        Equipment choices[] = {
+            MakeEquipment("Steel Sword", EQUIP_MELEE, 12, 0, 0, PHYS, "Well-forged blade"),
+            MakeEquipment("Heavy Revolver", EQUIP_GUN, 16, 0, 6, GUN, "Hard-hitting shots"),
+            MakeEquipment("Reinforced Vest", EQUIP_ARMOR, 0, 12, 0, ELEMENT_NONE, "Solid defense")
+        };
+        int idx = GetRandomValue(0, 2);
+        return choices[idx];
+    }
 }
 
 #endif // GAME_DATA_H

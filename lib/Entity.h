@@ -6,19 +6,21 @@
 
 enum Direction    { LEFT, UP, RIGHT, DOWN, NEUTRAL     };
 enum EntityStatus { ACTIVE, INACTIVE                   };
-enum EntityType   { PLAYER, BLOCK, PLATFORM, NPC, NONE };
+enum EntityType   { PLAYER, BLOCK, PLATFORM, NPC, PROP, NONE };
 // Updated AI enums (Phase 1: Patrol/Chase/Return behaviors)
 enum AIType { 
-    AI_GUARD,   // Patrols and chases
-    AI_SENTRY,  // Stationary until player close
-    AI_TRAP     // Moving hazard (invincible)
+    AI_GUARD,      // Patrols and chases
+    AI_SENTRY,     // Stationary until player close
+    AI_TRAP,       // Moving hazard (invincible)
+    AI_SEARCHLIGHT // Patrols; triggers global alarm, no combat
 };
 
 enum AIState { 
     IDLE,        // Inactive / waiting
     PATROLLING,  // Moving between waypoints
     CHASING,     // Pursuing player
-    RETURNING    // Returning to start position
+    RETURNING,   // Returning to start position
+    AI_AWAKENED  // Alerted (used by searchlight/sentries)
 };
 
 class Entity
@@ -59,6 +61,12 @@ private:
 
     AIType  mAIType;
     AIState mAIState;
+    
+    // Global alarm timer holder (used on Player)
+    float mAlarmTimer = 0.0f;
+
+    // Prop flags
+    bool mIsChest = false;
 
     // Patrol / AI navigation data
     Vector2 mStartPosition;    // Original post/guard position
@@ -173,7 +181,16 @@ public:
     void setAnimationAtlas(const std::map<Direction, std::vector<int>>& atlas)
     {
         mAnimationAtlas = atlas;
-        if (mTextureType == ATLAS) mAnimationIndices = mAnimationAtlas.at(mDirection);
+        if (mTextureType == ATLAS) {
+            auto it = mAnimationAtlas.find(mDirection);
+            if (it != mAnimationAtlas.end()) {
+                mAnimationIndices = it->second;
+            } else if (!mAnimationAtlas.empty()) {
+                // Fallback to RIGHT if present, else first available
+                auto rt = mAnimationAtlas.find(RIGHT);
+                mAnimationIndices = (rt != mAnimationAtlas.end()) ? rt->second : mAnimationAtlas.begin()->second;
+            }
+        }
     }
     void setSpeed(int newSpeed)                 { mSpeed  = newSpeed;                      }
     void setFrameSpeed(int newSpeed)            { mFrameSpeed = newSpeed;                  }
@@ -182,13 +199,23 @@ public:
     void setDirection(Direction newDirection)
     { 
         mDirection = newDirection;
-        if (mTextureType == ATLAS) mAnimationIndices = mAnimationAtlas.at(mDirection);
+        if (mTextureType == ATLAS) {
+            auto it = mAnimationAtlas.find(mDirection);
+            if (it != mAnimationAtlas.end()) {
+                mAnimationIndices = it->second;
+            } else if (!mAnimationAtlas.empty()) {
+                auto rt = mAnimationAtlas.find(RIGHT);
+                mAnimationIndices = (rt != mAnimationAtlas.end()) ? rt->second : mAnimationAtlas.begin()->second;
+            }
+        }
     }
     void setTint(Color color)                   { mTint = color;                           }
     void setAIState(AIState newState)           { mAIState = newState;                     }
     void setAIType(AIType newType)              { mAIType = newType;                       }
     void setStartPosition(Vector2 pos)          { mStartPosition = pos;                    }
     void setPatrolTarget(Vector2 pos)           { mPatrolTarget  = pos;                    }
+    void setAlarmTimer(float t)                 { mAlarmTimer = t;                         }
+    void setIsChest(bool v)                     { mIsChest = v;                            }
 
     // NEW Setter: configure sprite source facing direction
     void setSourceFacing(bool facesLeft) { mSpriteFacesLeft = facesLeft; }
@@ -197,6 +224,10 @@ public:
     void updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& followers,
         Map* map, float deltaTime, float tetherSpeed, float repelStrength,
         float jitterStrength, float damping);
+
+    // Alarm getter
+    float getAlarmTimer() const { return mAlarmTimer; }
+    bool isChest() const { return mIsChest; }
 };
 
 #endif // ENTITY_H
