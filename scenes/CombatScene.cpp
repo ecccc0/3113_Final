@@ -311,6 +311,12 @@ void CombatScene::initialise() {
         }
 
         Combatant& actor = mGameState.party[mActiveMemberIndex];
+        // Dead allies cannot act: skip their turn automatically
+        if (!actor.isAlive) {
+            actor.hasActed = true;
+            NextTurn();
+            return;
+        }
 
         if (mState == PLAYER_TURN_MAIN) {
             // Command Wheel rotation via UP/DOWN
@@ -402,19 +408,30 @@ void CombatScene::initialise() {
 
             if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
                 Ability action;
+                bool isGunAction = false;
                 if (mSelectedSkillIndex == -1) {
                     action = {"Melee", 0, 0, PHYS, false};
                 }
                 else if (mSelectedSkillIndex == -2) {
                     action = {"Gun", 0, 0, GUN, false};
-                    actor.currentAmmo--;
+                    isGunAction = true;
+                    if (actor.currentAmmo > 0) {
+                        actor.currentAmmo--;
+                    }
                 }
                 else {
                     action = actor.skills[mSelectedSkillIndex];
                     if (action.isMagic) actor.currentSp -= action.cost;
                     else actor.currentHp -= action.cost;
-                }    
+                }
                 CheckWeakness(actor, mGameState.battleEnemies[mSelectedTargetIndex], action);
+                // Allow multiple gun shots in a single turn until ammo is 0
+                if (isGunAction && actor.currentAmmo > 0) {
+                    actor.hasActed = false; // keep turn
+                    mState = PLAYER_TURN_TARGET; // remain in target selection
+                    mLog = "Ammo left: " + std::to_string(actor.currentAmmo) + " / " + std::to_string(actor.gunWeapon.magazineSize);
+                    mTimer = 0.0f; // cancel wait animation for rapid fire
+                }
             } else if (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_ESCAPE)) mState = PLAYER_TURN_MAIN;
         }
         else if (mState == PLAYER_TURN_TARGET_ALLY) 

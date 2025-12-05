@@ -234,8 +234,34 @@ void Entity::aiExecute(Entity* player, Map* map, float deltaTime)
         // Wake if player close
         if (Vector2Distance(mPosition, player->getPosition()) < 150.0f) {
             mAIState = CHASING;
+            mSpeed = 90; // ensure sentries move when chasing
         }
-        if (mAIState == CHASING) aiChase(player, deltaTime);
+        if (mAIState == CHASING) {
+            mSpeed = std::max(mSpeed, 80); // keep a minimum chase speed
+            aiChase(player, deltaTime);
+            // After 5 seconds of chasing, return to original position
+            mWaitTimer += deltaTime;
+            if (mWaitTimer >= 5.0f) {
+                mAIState = RETURNING;
+                mWaitTimer = 0.0f;
+                mSpeed = 70; // slower speed when returning
+            }
+        }
+        else if (mAIState == RETURNING) {
+            moveTowards(mStartPosition, deltaTime);
+            // Face toward start
+            Vector2 dir = Vector2Subtract(mStartPosition, mPosition);
+            if (fabs(dir.x) > fabs(dir.y)) {
+                mDirection = (dir.x > 0) ? RIGHT : LEFT;
+            } else {
+                mDirection = (dir.y > 0) ? DOWN : UP;
+            }
+            if (Vector2Distance(mPosition, mStartPosition) < 5.0f) {
+                mAIState = IDLE;
+                mSpeed = 0; // sentries idle when at post
+                mMovement = {0.0f, 0.0f};
+            }
+        }
         break;
 
     case AI_SEARCHLIGHT:

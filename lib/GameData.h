@@ -56,7 +56,6 @@ inline std::vector<Persona> INITIAL_PERSONAS() {
     arsene.name = "Arsene";
     arsene.baseAttack = 12; 
     arsene.baseDefense = 5; 
-    arsene.speed = 14;
     arsene.skills = { {"Eiha", 4, 20, CURSE, true}, {"Cleave", 6, 25, PHYS, false} };
     arsene.weaknesses = { ICE, BLESS };
     list.push_back(arsene);
@@ -66,7 +65,6 @@ inline std::vector<Persona> INITIAL_PERSONAS() {
     pixie.name = "Pixie";
     pixie.baseAttack = 8; 
     pixie.baseDefense = 4; 
-    pixie.speed = 10;
     pixie.skills = { {"Zio", 4, 15, ELEC, true}, {"Dia", 3, -30, ELEMENT_NONE, true} };
     pixie.weaknesses = { GUN, ICE };
     list.push_back(pixie);
@@ -76,7 +74,6 @@ inline std::vector<Persona> INITIAL_PERSONAS() {
     jack.name = "Jack Frost";
     jack.baseAttack = 11; 
     jack.baseDefense = 8; 
-    jack.speed = 9;
     jack.skills = { {"Bufu", 4, 25, ICE, true}, {"Mabufu", 10, 20, ICE, true} };
     jack.weaknesses = { FIRE };
     list.push_back(jack);
@@ -90,9 +87,9 @@ inline std::vector<Combatant> INITIAL_PARTY()
 
     Combatant joker{};
     joker.id = 0; joker.name = "Joker"; joker.texturePath = "assets/player_joker.png";
-    joker.currentHp = joker.maxHp = 100;
-    joker.currentSp = joker.maxSp = 50;
-    joker.baseAttack = 10; joker.baseDefense = 5; joker.speed = 12; // Adjusted base stats
+    joker.currentHp = joker.maxHp = 130;
+    joker.currentSp = joker.maxSp = 60;
+    joker.baseAttack = 14; joker.baseDefense = 8; // speed removed
     joker.meleeWeapon = WEP_PARADISE_LOST;
     joker.gunWeapon = GUN_TKACHEV;
     joker.armor = ARM_TUXEDO;
@@ -102,9 +99,9 @@ inline std::vector<Combatant> INITIAL_PARTY()
 
     Combatant skull{};
     skull.id = 1; skull.name = "Skull"; skull.texturePath = "assets/player_skull.png";
-    skull.currentHp = skull.maxHp = 150;
-    skull.currentSp = skull.maxSp = 30;
-    skull.baseAttack = 15; skull.baseDefense = 10; skull.speed = 8;
+    skull.currentHp = skull.maxHp = 180;
+    skull.currentSp = skull.maxSp = 35;
+    skull.baseAttack = 18; skull.baseDefense = 12;
     skull.meleeWeapon = WEP_PIPE;
     skull.gunWeapon = GUN_SHOTGUN;
     skull.currentAmmo = skull.gunWeapon.magazineSize;
@@ -114,9 +111,9 @@ inline std::vector<Combatant> INITIAL_PARTY()
 
     Combatant mona{};
     mona.id = 2; mona.name = "Mona"; mona.texturePath = "assets/player_mona.png";
-    mona.currentHp = mona.maxHp = 80;
-    mona.currentSp = mona.maxSp = 60;
-    mona.baseAttack = 8; mona.baseDefense = 4; mona.speed = 15;
+    mona.currentHp = mona.maxHp = 100;
+    mona.currentSp = mona.maxSp = 70;
+    mona.baseAttack = 11; mona.baseDefense = 6;
     mona.meleeWeapon = WEP_SWORD;
     mona.gunWeapon = GUN_SLINGSHOT;
     mona.currentAmmo = mona.gunWeapon.magazineSize;
@@ -126,9 +123,9 @@ inline std::vector<Combatant> INITIAL_PARTY()
 
     Combatant noir{};
     noir.id = 3; noir.name = "Noir"; noir.texturePath = "assets/player_noir.png";
-    noir.currentHp = noir.maxHp = 110;
-    noir.currentSp = noir.maxSp = 45;
-    noir.baseAttack = 12; noir.baseDefense = 8; noir.speed = 10;
+    noir.currentHp = noir.maxHp = 130;
+    noir.currentSp = noir.maxSp = 55;
+    noir.baseAttack = 15; noir.baseDefense = 10;
     noir.meleeWeapon = WEP_AXE;
     noir.gunWeapon = GUN_LAUNCHER;
     noir.currentAmmo = noir.gunWeapon.magazineSize;
@@ -179,11 +176,11 @@ inline Combatant getEnemyData(int id) {
             enemy.baseDefense = 4;
             enemy.weaknesses = { GUN, ICE, CURSE };
             break;
-        case 1: // Jack Frost
+        case 1: // Jack Frost (Nerfed for Level 2)
             enemy.name = "Jack Frost";
-            enemy.maxHp = 120; enemy.currentHp = 120;
-            enemy.baseAttack = 15;
-            enemy.baseDefense = 6;
+            enemy.maxHp = 90; enemy.currentHp = 90;
+            enemy.baseAttack = 12;
+            enemy.baseDefense = 5;
             enemy.weaknesses = { FIRE };
             break;
         case 2: // Agathion (Weak Elec)
@@ -207,32 +204,32 @@ inline Combatant getEnemyData(int id) {
             enemy.baseDefense = 6;
             enemy.weaknesses = { FIRE };
             break;
-        case 10: // Kelpie (Weak Elec)
+        case 10: // Kelpie (Weak Elec, Nerfed)
             enemy.name = "Kelpie";
+            enemy.maxHp = 85; enemy.currentHp = 85;
+            enemy.baseAttack = 11;
+            enemy.baseDefense = 5;
+            enemy.weaknesses = { ELEC };
+            break;
+        case 11: // Berith (Weak Ice, Nerfed)
+            enemy.name = "Berith";
             enemy.maxHp = 110; enemy.currentHp = 110;
             enemy.baseAttack = 14;
             enemy.baseDefense = 7;
-            enemy.weaknesses = { ELEC };
-            break;
-        case 11: // Berith (Weak Ice)
-            enemy.name = "Berith";
-            enemy.maxHp = 140; enemy.currentHp = 140;
-            enemy.baseAttack = 18;
-            enemy.baseDefense = 9;
             enemy.weaknesses = { ICE };
             break;
-        case 12: // Eligor (Weak Elec)
+        case 12: // Eligor (Weak Elec, Nerfed)
             enemy.name = "Eligor";
-            enemy.maxHp = 130; enemy.currentHp = 130;
-            enemy.baseAttack = 17;
-            enemy.baseDefense = 8;
+            enemy.maxHp = 100; enemy.currentHp = 100;
+            enemy.baseAttack = 13;
+            enemy.baseDefense = 6;
             enemy.weaknesses = { ELEC };
             break;
-        case 13: // Hua Po (Weak Ice)
+        case 13: // Hua Po (Weak Ice, Nerfed)
             enemy.name = "Hua Po";
-            enemy.maxHp = 95; enemy.currentHp = 95;
-            enemy.baseAttack = 13;
-            enemy.baseDefense = 5;
+            enemy.maxHp = 75; enemy.currentHp = 75;
+            enemy.baseAttack = 10;
+            enemy.baseDefense = 4;
             enemy.weaknesses = { ICE };
             break;
         case 99: // Boss placeholder

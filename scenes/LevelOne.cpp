@@ -118,57 +118,44 @@ void LevelOne::initialise()
     mFollowers.push_back(mona);
     mFollowers.push_back(noir);
 
-    // For prototype we have 1 enemy; ensure local defeated flags sized
-    if (mGameState.defeatedEnemies.size() < 1)
-        mGameState.defeatedEnemies.resize(1, false);
 
     // 3. CREATE ENEMIES (guards) ONLY IF NOT DEFEATED
     // Expand to multiple guards at specified positions
     std::vector<Vector2> guardPositions = {
-        { 570.0f,  170.0f },
+        { 570.0f,  350.0f },
         { 784.0f,  688.0f },
         { 272.0f,  688.0f },
         { -23.0f,  344.0f}
     };
-    // Resize defeated flags to match guard count
+    // Ensure defeated flags to match guard count
     if (mGameState.defeatedEnemies.size() < guardPositions.size()) {
         mGameState.defeatedEnemies.resize(guardPositions.size(), false);
     }
 
-    // Count remaining (not defeated) enemies
-    int activeCount = 0;
-    for (size_t i = 0; i < guardPositions.size(); ++i) {
-        if (!mGameState.defeatedEnemies[i]) activeCount++;
-    }
-
-    if (activeCount > 0) {
-        mGameState.enemyCount = activeCount;
+    // Stable indexing: allocate full array and deactivate defeated ones
+    mGameState.enemyCount = static_cast<int>(guardPositions.size());
+    if (mGameState.enemyCount > 0) {
         mGameState.worldEnemies = new Entity[mGameState.enemyCount];
-
-        int w = 0;
         for (size_t i = 0; i < guardPositions.size(); ++i) {
-            if (mGameState.defeatedEnemies[i]) continue;
-            mGameState.worldEnemies[w] = Entity();
-            mGameState.worldEnemies[w].setPosition(guardPositions[i]);
-            mGameState.worldEnemies[w].setScale({ 32.0f, 32.0f });
-            mGameState.worldEnemies[w].setColliderDimensions({ 32.0f, 32.0f });
-            mGameState.worldEnemies[w].setTexture("assets/enemy_atlas.png");
-            mGameState.worldEnemies[w].setTextureType(ATLAS);
-            mGameState.worldEnemies[w].setEntityType(NPC);
-            mGameState.worldEnemies[w].activate();
-            mGameState.worldEnemies[w].setAcceleration({ 0.0f, 0.0f });
-            mGameState.worldEnemies[w].setAIType(AI_GUARD);
-            mGameState.worldEnemies[w].setAIState(PATROLLING);
+            mGameState.worldEnemies[i] = Entity();
+            mGameState.worldEnemies[i].setPosition(guardPositions[i]);
+            mGameState.worldEnemies[i].setScale({ 32.0f, 32.0f });
+            mGameState.worldEnemies[i].setColliderDimensions({ 32.0f, 32.0f });
+            mGameState.worldEnemies[i].setTexture("assets/enemy_atlas.png");
+            mGameState.worldEnemies[i].setTextureType(ATLAS);
+            mGameState.worldEnemies[i].setEntityType(NPC);
+            mGameState.worldEnemies[i].activate();
+            mGameState.worldEnemies[i].setAcceleration({ 0.0f, 0.0f });
+            mGameState.worldEnemies[i].setAIType(AI_GUARD);
+            mGameState.worldEnemies[i].setAIState(PATROLLING);
 
-            // Basic patrol: small vertical ping-pong from starting pos
-            Vector2 startPos = mGameState.worldEnemies[w].getPosition();
-            mGameState.worldEnemies[w].setStartPosition(startPos);
-            mGameState.worldEnemies[w].setPatrolTarget({ startPos.x, startPos.y + 80.0f });
-            mGameState.worldEnemies[w].setDirection(DOWN);
-            mGameState.worldEnemies[w].setSpeed(80);
+            Vector2 startPos = guardPositions[i];
+            mGameState.worldEnemies[i].setStartPosition(startPos);
+            mGameState.worldEnemies[i].setPatrolTarget({ startPos.x, startPos.y + 80.0f });
+            mGameState.worldEnemies[i].setDirection(DOWN);
+            mGameState.worldEnemies[i].setSpeed(80);
 
-            // Atlas setup: 3 rows x 8 cols, move frames 4-7
-            mGameState.worldEnemies[w].setSpriteSheetDimensions({ 3, 8 });
+            mGameState.worldEnemies[i].setSpriteSheetDimensions({ 3, 8 });
             std::map<Direction, std::vector<int>> enemyAnim = {
                 { LEFT,    { 4, 5, 6, 7 } },
                 { RIGHT,   { 4, 5, 6, 7 } },
@@ -176,13 +163,15 @@ void LevelOne::initialise()
                 { DOWN,    { 4, 5, 6, 7 } },
                 { NEUTRAL, { 0, 1, 2, 3 } }
             };
-            mGameState.worldEnemies[w].setAnimationAtlas(enemyAnim);
-            mGameState.worldEnemies[w].setSourceFacing(true);
-            mGameState.worldEnemies[w].setScale({ 64.0f, 50.0f });
-            w++;
+            mGameState.worldEnemies[i].setAnimationAtlas(enemyAnim);
+            mGameState.worldEnemies[i].setSourceFacing(true);
+            mGameState.worldEnemies[i].setScale({ 64.0f, 50.0f });
+
+            if (mGameState.defeatedEnemies[i]) {
+                mGameState.worldEnemies[i].deactivate();
+            }
         }
     } else {
-        mGameState.enemyCount = 0;
         mGameState.worldEnemies = nullptr;
     }
 

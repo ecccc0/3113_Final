@@ -46,7 +46,7 @@ struct Persona {
     // Stats that this Persona confers to Joker
     int baseAttack;
     int baseDefense;
-    int speed;
+    // int speed; // removed: speed stat unused
     
     std::vector<Ability> skills;
     std::vector<Element> weaknesses;
@@ -63,7 +63,7 @@ struct Combatant {
     // Base Stats
     int baseAttack;
     int baseDefense;
-    int speed;
+    // int speed; // removed: speed stat unused
     
     // State
     bool isAlive = true;

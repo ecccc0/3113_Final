@@ -4,13 +4,21 @@
 #include "scenes/LevelOne.h"
 #include "scenes/LevelTwo.h"
 #include "scenes/CombatScene.h"
+#include "scenes/StartMenu.h"
 #include "lib/ShaderProgram.h"
 #include <iostream>
+#include <unordered_map>
 
 // --- GLOBALS ---
 constexpr int SCREEN_WIDTH  = 1000;
 constexpr int SCREEN_HEIGHT = 600;
 constexpr int TARGET_FPS    = 60;
+
+// Scene indices (order in gLevels)
+constexpr int IDX_LEVEL_ONE   = 0;
+constexpr int IDX_LEVEL_TWO   = 1;
+constexpr int IDX_COMBAT      = 2;
+constexpr int IDX_START_MENU  = 3;
 
 GameStatus gGameStatus = EXPLORATION;
 AppStatus gAppStatus   = RUNNING;
@@ -45,7 +53,6 @@ void EquipPersona(int index) {
     // Overwrite Joker's Stats
     joker.baseAttack  = p.baseAttack;
     joker.baseDefense = p.baseDefense;
-    joker.speed       = p.speed;
     joker.skills      = p.skills;
     joker.weaknesses  = p.weaknesses;
 
@@ -57,12 +64,20 @@ std::vector<std::vector<bool>> gSceneEnemyDefeated;
 
 ShaderProgram gShader;
 
+// --- GLOBAL TRANSITION (Fade In/Out) ---
+enum TransitionPhase { T_NONE, T_FADE_OUT, T_SWITCH, T_FADE_IN };
+TransitionPhase gTransitionPhase = T_NONE;
+float gTransitionAlpha = 0.0f; // 0.0 = visible, 1.0 = black
+int gPendingSceneID = -1;
+
 // --- PAUSE MENU GLOBALS ---
 enum PauseState {
     P_MAIN,
     P_PARTY_SELECT, // For choosing who to view (Skill/Equip)
     P_SKILL_LIST,
     P_SKILL_TARGET_ALLY, // NEW: For selecting who to heal
+    P_ITEM_LIST,
+    P_ITEM_TARGET_ALLY,
     P_EQUIP_VIEW,
     P_EQUIP_LIST,   // Select Item to Equip
     P_PERSONA,      // Joker only
@@ -83,6 +98,7 @@ int gPauseMenuSelection = 0; // 0=Skill, 1=Equip, 2=Persona, 3=System
 bool gInSubMenu = false;
 std::string gSubMenuMessage = ""; // Text to show in the sub-menu
 bool gPauseJustOpened = false;     // Prevent immediate ESC unpause on same frame
+int gItemGroupSelection = 0;       // Cursor for grouped item list
 
 // Volume Settings (0.0f to 1.0f)
 float gMasterVolume = 1.0f;
@@ -109,6 +125,32 @@ void OpenPauseMenu() {
     gPauseState = P_MAIN;
     gMenuSelection = 0;
     gPauseJustOpened = true;
+    gItemGroupSelection = 0;
+}
+// Group identical inventory items by name for stacked display and selection
+struct ItemGroup {
+    Item item;
+    int count;
+    std::vector<int> indices; // original indices in gInventory
+};
+
+static std::vector<ItemGroup> BuildInventoryGroups() {
+    std::vector<ItemGroup> groups;
+    std::unordered_map<std::string, int> nameToIdx;
+    for (int i = 0; i < (int)gInventory.size(); ++i) {
+        const Item &it = gInventory[i];
+        auto itFind = nameToIdx.find(it.name);
+        if (itFind == nameToIdx.end()) {
+            ItemGroup g; g.item = it; g.count = 1; g.indices = { i };
+            groups.push_back(g);
+            nameToIdx[it.name] = (int)groups.size() - 1;
+        } else {
+            ItemGroup &g = groups[itFind->second];
+            g.count += 1;
+            g.indices.push_back(i);
+        }
+    }
+    return groups;
 }
 
 // Helper to filter healing skills
@@ -152,6 +194,10 @@ void switchToScene(int sceneIndex)
     // Ensure transition request flag starts cleared to avoid accidental immediate switches
     gCurrentScene->getState().nextSceneID = -1;
     gCurrentScene->initialise();
+
+    // Ensure scene state starts with the current global inventory
+    // Prevents first update() from overriding with empty scene inventory
+    gCurrentScene->getState().inventory = gInventory;
 }
 
 
@@ -230,6 +276,9 @@ void processInput()
                 case P_SKILL_TARGET_ALLY:
                     gPauseState = P_SKILL_LIST; // Cancel targeting, return to list
                     break;
+                case P_ITEM_TARGET_ALLY:
+                    gPauseState = P_ITEM_LIST; // Cancel item targeting, return to item list
+                    break;
                 case P_SKILL_LIST:
                 case P_EQUIP_VIEW:
                     gPauseState = P_PARTY_SELECT; 
@@ -238,6 +287,11 @@ void processInput()
                 case P_EQUIP_LIST:
                     // From bag list, go back to slot view
                     gPauseState = P_EQUIP_VIEW;
+                    break;
+                case P_ITEM_LIST:
+                    // Back to main menu, keep cursor on ITEM
+                    gPauseState = P_MAIN;
+                    gMenuSelection = 1;
                     break;
                 case P_AUDIO_SETTINGS:
                     gPauseState = P_SYSTEM;
@@ -260,8 +314,10 @@ void processInput()
         
         // A. MAIN MENU
         if (gPauseState == P_MAIN) {
-            if (IsKeyPressed(KEY_UP))   gMenuSelection = (gMenuSelection - 1 + 4) % 4;
-            if (IsKeyPressed(KEY_DOWN)) gMenuSelection = (gMenuSelection + 1) % 4;
+            // Options: SKILL, ITEM, EQUIP, PERSONA, SYSTEM
+            const int OPTION_COUNT = 5;
+            if (IsKeyPressed(KEY_UP))   gMenuSelection = (gMenuSelection - 1 + OPTION_COUNT) % OPTION_COUNT;
+            if (IsKeyPressed(KEY_DOWN)) gMenuSelection = (gMenuSelection + 1) % OPTION_COUNT;
             
             if (!gPauseJustOpened && (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER))) {
                 // PlaySound(gSndSelect);
@@ -269,14 +325,18 @@ void processInput()
                     gPauseState = P_PARTY_SELECT;
                     gSubMenuSelection = 0;
                 }
-                else if (gMenuSelection == 1) { // EQUIP (Ignore)
+                else if (gMenuSelection == 1) { // ITEM
+                    gPauseState = P_ITEM_LIST;
+                    gSubMenuSelection = 0;
+                }
+                else if (gMenuSelection == 2) { // EQUIP
                      gPauseState = P_PARTY_SELECT;
                      gSubMenuSelection = 0;
                 }
-                else if (gMenuSelection == 2) { // PERSONA (Ignore)
+                else if (gMenuSelection == 3) { // PERSONA
                     gPauseState = P_PERSONA;
                 }
-                else if (gMenuSelection == 3) { // SYSTEM
+                else if (gMenuSelection == 4) { // SYSTEM
                     gPauseState = P_SYSTEM;
                     gSubMenuSelection = 0;
                 }
@@ -296,9 +356,73 @@ void processInput()
                     gPauseState = P_SKILL_LIST;
                     gSubMenuSelection = 0; 
                 } 
-                else { // EQUIP (Placeholder)
+                else { // EQUIP
                     gPauseState = P_EQUIP_VIEW;
                 }
+            }
+        }
+        // C2. ITEM LIST (Inventory) -> choose item
+        else if (gPauseState == P_ITEM_LIST) {
+            std::vector<ItemGroup> groups = BuildInventoryGroups();
+            if (groups.empty()) {
+                // No items; back to main
+                if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    gPauseState = P_MAIN;
+                    gMenuSelection = 0;
+                }
+            } else {
+                if (IsKeyPressed(KEY_UP))   gItemGroupSelection = (gItemGroupSelection - 1 + (int)groups.size()) % (int)groups.size();
+                if (IsKeyPressed(KEY_DOWN)) gItemGroupSelection = (gItemGroupSelection + 1) % (int)groups.size();
+                if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                    // Go to target selection to apply item
+                    gPauseState = P_ITEM_TARGET_ALLY;
+                    // Default target to active member
+                    gSubMenuSelection = gSelectedMemberIdx;
+                }
+            }
+        }
+
+        // D2. ITEM TARGETING (Apply item to ally)
+        else if (gPauseState == P_ITEM_TARGET_ALLY) {
+            if (!gParty.empty()) {
+                if (IsKeyPressed(KEY_UP))   gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size();
+                if (IsKeyPressed(KEY_DOWN)) gSubMenuSelection = (gSubMenuSelection + 1) % (int)gParty.size();
+            }
+
+            if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
+                // Use first occurrence of selected grouped item
+                std::vector<ItemGroup> groups = BuildInventoryGroups();
+                int idxItem = -1;
+                if (!groups.empty() && gItemGroupSelection >= 0 && gItemGroupSelection < (int)groups.size()) {
+                    idxItem = groups[gItemGroupSelection].indices.front();
+                }
+                int idxTarget = gSubMenuSelection;
+                if (idxTarget < 0) idxTarget = 0;
+                if (idxTarget >= (int)gParty.size()) idxTarget = (int)gParty.size() - 1;
+                // Apply selected item to selected target
+                Combatant& target = gParty[idxTarget];
+                const Item& chosen = (idxItem >= 0) ? gInventory[idxItem] : Item{};
+                if (chosen.isRevive) {
+                    if (!target.isAlive) {
+                        target.isAlive = true;
+                        target.isDown = false;
+                        target.currentHp = chosen.value;
+                        if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
+                    }
+                } else if (chosen.isSP) {
+                    target.currentSp += chosen.value;
+                    if (target.currentSp > target.maxSp) target.currentSp = target.maxSp;
+                } else {
+                    target.currentHp += chosen.value;
+                    if (target.currentHp > target.maxHp) target.currentHp = target.maxHp;
+                }
+                // Consume item
+                if (idxItem >= 0) {
+                    gInventory.erase(gInventory.begin() + idxItem);
+                }
+                // Return to item list
+                gPauseState = P_ITEM_LIST;
+                gItemGroupSelection = 0;
             }
         }
 
@@ -497,13 +621,42 @@ void update()
         float deltaTime = ticks - gPreviousTicks;
         gPreviousTicks  = ticks;
 
-        gCurrentScene->update(deltaTime);
+        // Handle global fade transition phases
+        if (gTransitionPhase == T_FADE_OUT) {
+            gTransitionAlpha += deltaTime * 2.0f; // ~0.5s fade
+            if (gTransitionAlpha >= 1.0f) { gTransitionAlpha = 1.0f; gTransitionPhase = T_SWITCH; }
+        }
+        if (gTransitionPhase == T_SWITCH) {
+            if (gPendingSceneID >= 0) {
+                gCurrentScene->shutdown();
+                switchToScene(gPendingSceneID);
+                // Set game status based on target
+                gGameStatus = (gPendingSceneID == IDX_COMBAT) ? COMBAT : EXPLORATION;
+                gPendingSceneID = -1;
+            }
+            gTransitionPhase = T_FADE_IN;
+        }
+        if (gTransitionPhase == T_FADE_IN) {
+            gTransitionAlpha -= deltaTime * 2.0f;
+            if (gTransitionAlpha <= 0.0f) { gTransitionAlpha = 0.0f; gTransitionPhase = T_NONE; }
+        }
+
+        // Update current scene only when not switching
+        if (gTransitionPhase != T_SWITCH) {
+            gCurrentScene->update(deltaTime);
+        }
 
         // Tick down global item toast timer
         GameState& st = gCurrentScene->getState();
         if (st.itemToastTimer > 0.0f) {
             st.itemToastTimer -= deltaTime;
             if (st.itemToastTimer < 0.0f) st.itemToastTimer = 0.0f;
+        }
+
+        // Sync scene inventory back to global during exploration/title
+        // Ensures chest loot reflects in pause menu and global inventory
+        if (gGameStatus == EXPLORATION || gGameStatus == TITLE) {
+            gInventory = st.inventory;
         }
     }
 }
@@ -598,8 +751,8 @@ void render()
 
         // 2. MAIN MENU (Right-side alignment without shape)
         if (gPauseState == P_MAIN) {
-            const char* options[] = { "SKILL", "EQUIP", "PERSONA", "SYSTEM" };
-            for (int i = 0; i < 4; i++) {
+            const char* options[] = { "SKILL", "ITEM", "EQUIP", "PERSONA", "SYSTEM" };
+            for (int i = 0; i < 5; i++) {
                 int x = 700 - (i * 20);
                 int y = 150 + (i * 70);
                 Color col = (i == gMenuSelection) ? WHITE : GRAY;
@@ -607,6 +760,40 @@ void render()
                     DrawTriangle({(float)x-30, (float)y+20}, {(float)x-15, (float)y+5}, {(float)x-15, (float)y+35}, RED);
                 }
                 DrawText(options[i], x, y, 40, col);
+            }
+        }
+        // 4b. ITEM LIST (Inventory)
+        else if (gPauseState == P_ITEM_LIST) {
+            DrawText("ITEMS", 50, 50, 40, WHITE);
+            std::vector<ItemGroup> groups = BuildInventoryGroups();
+            if (groups.empty()) {
+                DrawText("No items.", 100, 200, 30, GRAY);
+            } else {
+                for (int i = 0; i < (int)groups.size(); i++) {
+                    int y = 150 + (i * 60);
+                    bool isSel = (i == gItemGroupSelection);
+                    if (isSel) DrawRectangle(0, y - 8, 500, 40, WHITE);
+                    DrawText(TextFormat("%s x%d", groups[i].item.name.c_str(), groups[i].count), 100, y, 30, isSel ? BLACK : GRAY);
+                    DrawText(groups[i].item.description.c_str(), 350, y+5, 18, isSel ? BLACK : DARKGRAY);
+                }
+            }
+            DrawText("[Z] Use  [ESC] Back", 50, 550, 20, GRAY);
+        }
+
+        // 5b. ITEM TARGETING (Apply)
+        else if (gPauseState == P_ITEM_TARGET_ALLY) {
+            DrawText("SELECT TARGET", 50, 50, 30, YELLOW);
+            for (int i = 0; i < (int)gParty.size(); i++) {
+                int x = 100 + (i * 40);
+                int y = 150 + (i * 80);
+                bool isTarget = (i == gSubMenuSelection);
+                Color bg = isTarget ? Fade(YELLOW, 0.2f) : BLACK;
+                DrawRectangle(x, y, 350, 70, bg);
+                DrawRectangleLines(x, y, 350, 70, isTarget ? YELLOW : DARKGRAY);
+                DrawText(gParty[i].name.c_str(), x + 20, y + 20, 30, WHITE);
+                DrawText(TextFormat("HP %d/%d", gParty[i].currentHp, gParty[i].maxHp), x + 160, y + 25, 20, GREEN);
+                DrawText(TextFormat("SP %d/%d", gParty[i].currentSp, gParty[i].maxSp), x + 160, y + 45, 18, SKYBLUE);
+                if (isTarget) DrawText("USE", x + 300, y + 25, 20, YELLOW);
             }
         }
 
@@ -738,7 +925,7 @@ void render()
                 DrawText("STATS:", statX, statY, 25, RED);
                 DrawText(TextFormat("Atk: %d", p.baseAttack), statX, statY + 40, 25, WHITE);
                 DrawText(TextFormat("Def: %d", p.baseDefense), statX, statY + 80, 25, WHITE);
-                DrawText(TextFormat("Spd: %d", p.speed), statX, statY + 120, 25, WHITE);
+                // Speed stat removed
 
                 DrawText("SKILLS:", statX, statY + 180, 25, RED);
                 for(int k=0; k<(int)p.skills.size(); k++) {
@@ -868,6 +1055,11 @@ void render()
         }
     }
 
+    // GLOBAL FADE OVERLAY (applies during transitions between levels/combat)
+    if (gTransitionPhase != T_NONE) {
+        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, gTransitionAlpha));
+    }
+
     // GLOBAL TOAST: Item acquisition (bottom-right, 2s)
     const GameState& st = gCurrentScene->getState();
     if (st.itemToastTimer > 0.0f && !st.itemToast.empty()) {
@@ -900,13 +1092,15 @@ int main()
     initialise();
 
     // Scene Setup
-    gLevels.push_back(new LevelTwo({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new LevelOne({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
+    gLevels.push_back(new LevelTwo({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new CombatScene({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
+    gLevels.push_back(new StartMenu({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     
     gSceneEnemyDefeated.resize(gLevels.size());
 
-    switchToScene(0);
+    switchToScene(IDX_START_MENU);
+    gGameStatus = TITLE;
 
     while (gAppStatus != TERMINATED) {
         processInput();
@@ -917,7 +1111,7 @@ int main()
              int nextID = gCurrentScene->getState().nextSceneID;
              
              // Pass Party State to Combat
-            if (nextID == 2) { 
+            if (nextID == IDX_COMBAT) { 
                 gLevels[nextID]->getState().party = gParty;
                 gLevels[nextID]->getState().inventory = gInventory;
                 gLevels[nextID]->getState().returnSceneID = gCurrentLevelIndex;
@@ -934,7 +1128,7 @@ int main()
             }
              
             // Return from Combat: Update Global Party and restore spawn position in target level
-            if (gCurrentLevelIndex == 2 && nextID != 2) {
+            if (gCurrentLevelIndex == IDX_COMBAT && nextID != IDX_COMBAT) {
                 gParty = gCurrentScene->getState().party;
                 gInventory = gCurrentScene->getState().inventory;
                 gLevels[nextID]->getState().returnSpawnPos = gCurrentScene->getState().returnSpawnPos;
@@ -943,9 +1137,36 @@ int main()
                 gLevels[nextID]->getState().defeatedEnemies = gCurrentScene->getState().defeatedEnemies;
             }
 
-            gCurrentScene->shutdown();
-            switchToScene(nextID);
-            gGameStatus = (nextID == 2) ? COMBAT : EXPLORATION;
+            // Use global fade transition for level/combat switches (no camera tween)
+            if (nextID == IDX_START_MENU) {
+                // Immediate switch for title
+                gCurrentScene->shutdown();
+                switchToScene(nextID);
+                gGameStatus = TITLE;
+            } else {
+                // Apply party stat boosts when progressing to next level
+                // Example: from Level One -> Level Two grants a boost
+                if (gCurrentLevelIndex == IDX_LEVEL_ONE && nextID == IDX_LEVEL_TWO) {
+                    const int hpBoost = 30;
+                    const int spBoost = 15;
+                    const int atkBoost = 10;
+                    const int defBoost = 8;
+                    const int spdBoost = 2;
+                    for (auto &m : gParty) {
+                        m.maxHp += hpBoost;
+                        m.currentHp += hpBoost; // heal and extend
+                        if (m.currentHp > m.maxHp) m.currentHp = m.maxHp;
+                        m.maxSp += spBoost;
+                        m.currentSp += spBoost;
+                        if (m.currentSp > m.maxSp) m.currentSp = m.maxSp;
+                        m.baseAttack += atkBoost;
+                        m.baseDefense += defBoost;
+                        // speed boost removed (stat unused)
+                    }
+                }
+                gPendingSceneID = nextID;
+                gTransitionPhase = T_FADE_OUT;
+            }
         }
 
         render();
