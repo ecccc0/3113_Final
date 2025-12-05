@@ -246,6 +246,7 @@ void CombatScene::initialise() {
                         if (actor.currentAmmo > 0) {
                             mState = PLAYER_TURN_TARGET;
                             mSelectedSkillIndex = -2; // Gun indicator
+                            mLog = "Ammo left: " + std::to_string(actor.currentAmmo) + " / " + std::to_string(actor.gunWeapon.magazineSize);
                         }
                         else {
                             mLog = "Out of Ammo!";

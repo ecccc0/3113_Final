@@ -215,6 +215,10 @@ void processInput()
                     gPauseState = P_PARTY_SELECT; 
                     gSubMenuSelection = gSelectedMemberIdx; 
                     break;
+                case P_EQUIP_LIST:
+                    // From bag list, go back to slot view
+                    gPauseState = P_EQUIP_VIEW;
+                    break;
                 case P_AUDIO_SETTINGS:
                     gPauseState = P_SYSTEM;
                     gSubMenuSelection = 0; // Highlight "Audio Settings"
