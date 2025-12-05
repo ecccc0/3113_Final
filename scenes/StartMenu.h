@@ -20,7 +20,7 @@ private:
     int mSelection = 0;
     float mBlinkTimer = 0.0f;
     bool mShowPrompt = true;
-    std::vector<const char*> mOptions { "Level One", "Level Two" };
+    std::vector<const char*> mOptions { "Level One", "Level Two", "Level Three" };
 };
 
 #endif // START_MENU_H

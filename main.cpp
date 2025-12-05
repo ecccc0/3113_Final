@@ -3,6 +3,7 @@
 #include "lib/GameData.h"
 #include "scenes/LevelOne.h"
 #include "scenes/LevelTwo.h"
+#include "scenes/LevelThree.h"
 #include "scenes/CombatScene.h"
 #include "scenes/StartMenu.h"
 #include "lib/ShaderProgram.h"
@@ -19,6 +20,7 @@ constexpr int IDX_LEVEL_ONE   = 0;
 constexpr int IDX_LEVEL_TWO   = 1;
 constexpr int IDX_COMBAT      = 2;
 constexpr int IDX_START_MENU  = 3;
+constexpr int IDX_LEVEL_THREE = 4;
 
 GameStatus gGameStatus = EXPLORATION;
 AppStatus gAppStatus   = RUNNING;
@@ -1096,6 +1098,7 @@ int main()
     gLevels.push_back(new LevelTwo({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new CombatScene({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     gLevels.push_back(new StartMenu({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
+    gLevels.push_back(new LevelThree({SCREEN_WIDTH/2, SCREEN_HEIGHT/2}, "#000000"));
     
     gSceneEnemyDefeated.resize(gLevels.size());
 

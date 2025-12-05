@@ -264,6 +264,20 @@ void Entity::aiExecute(Entity* player, Map* map, float deltaTime)
         }
         break;
 
+    case AI_BOSS:
+        // Boss remains idle (no chase), but can face player
+        if (player) {
+            Vector2 dir = Vector2Subtract(player->getPosition(), mPosition);
+            if (fabs(dir.x) > fabs(dir.y)) {
+                mDirection = (dir.x > 0) ? RIGHT : LEFT;
+            } else {
+                mDirection = (dir.y > 0) ? DOWN : UP;
+            }
+        }
+        mMovement = {0.0f, 0.0f};
+        mSpeed = 0.0f; // no movement
+        break;
+
     case AI_SEARCHLIGHT:
         // Patrol behavior, longer/narrower vision cone to trigger alarm
         aiPatrol(deltaTime);
@@ -452,7 +466,8 @@ void Entity::update(float deltaTime, Entity *player, Map *map,
     }
 
     // 6. ANIMATE
-    if (mTextureType == ATLAS && Vector2Length(mMovement) != 0) 
+    // Animate when moving; also allow idle animation for bosses
+    if (mTextureType == ATLAS && (Vector2Length(mMovement) != 0 || mAIType == AI_BOSS))
         animate(deltaTime);
     }
 }
@@ -610,7 +625,7 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
     Map* map, float deltaTime, float tetherSpeed, float repelStrength,
     float jitterStrength, float damping)
 {
-    if (mEntityType != NPC || mAIType != AI_SENTRY || leader == nullptr) return;
+    if (mEntityType != NPC || mAIType != AI_FOLLOWER || leader == nullptr) return;
 
     Vector2 currentPos = mPosition;
     const float IDLE_SPEED_THRESHOLD = 12.0f;   // px/s considered idle

@@ -84,17 +84,14 @@ void CombatScene::initialise() {
         // Dynamic encounter generation based on the level that triggered combat
         mGameState.battleEnemies.clear();
 
-        int levelIdx = mGameState.returnSceneID; // 0: Level 1, 1: Level 2, 2: Mini-boss
-        int enemyCount = (levelIdx == 0) ? 2 : 3; // L1: 2 enemies, L2+: 3 enemies
+        int levelIdx = mGameState.returnSceneID; // 0: Level 1, 1: Level 2, >=2: Final boss
+        int enemyCount = (levelIdx == 0) ? 2 : 3; // default: L1: 2 enemies, L2: 3 enemies
 
-        if (levelIdx == 2) {
-            // Mini-boss: Boss + 2 minions from Level 1 pool
+        // Final level: single boss encounter.
+        if ( levelIdx == 4) {
+            // Final level: single boss encounter
             Combatant boss = getEnemyData(99);
             mGameState.battleEnemies.push_back(boss);
-            for (int i = 0; i < 2; ++i) {
-                Combatant minion = getRandomEnemyForLevel(0);
-                mGameState.battleEnemies.push_back(minion);
-            }
         } else {
             for (int i = 0; i < enemyCount; ++i) {
                 Combatant enemy = getRandomEnemyForLevel(levelIdx);
@@ -231,18 +228,34 @@ void CombatScene::initialise() {
 
         // Smoothly Zoom Out to 1.0f
         
+        // Check player defeat (Joker at index 0)
+        bool jokerDead = false;
+        if (!mGameState.party.empty()) {
+            jokerDead = !mGameState.party[0].isAlive;
+        }
+
         bool enemiesAlive = false;
         for (auto& e : mGameState.battleEnemies) if (e.isAlive) enemiesAlive = true;
+        if (jokerDead) {
+            mLog = "YOU DIED! Press ENTER to return to Title";
+            if (IsKeyPressed(KEY_ENTER)) {
+                mGameState.nextSceneID = 3; // Start Menu (Title)
+            }
+            return;
+        }
         if (!enemiesAlive) {
-            mLog = "VICTORY! Press SPACE.";
-            if (IsKeyPressed(KEY_SPACE)) {
+            // If this combat was triggered from the final level, return to Title
+            bool isFinalBossEncounter = (mGameState.returnSceneID == 4);
+            mLog = isFinalBossEncounter ? "YOU WON! Press ENTER to return to Title" : "VICTORY! Press SPACE.";
+            if ((isFinalBossEncounter && IsKeyPressed(KEY_ENTER)) || (!isFinalBossEncounter && IsKeyPressed(KEY_SPACE))) {
                 // Mark the engaged enemy (if valid) as defeated in this scene's state
                 if (mGameState.engagedEnemyIndex >= 0) {
                     if (mGameState.defeatedEnemies.size() <= (size_t)mGameState.engagedEnemyIndex)
                         mGameState.defeatedEnemies.resize(mGameState.engagedEnemyIndex + 1, false);
                     mGameState.defeatedEnemies[mGameState.engagedEnemyIndex] = true;
                 }
-                mGameState.nextSceneID = mGameState.returnSceneID >= 0 ? mGameState.returnSceneID : 0;
+                // Final boss: go to Start Menu (Title). Otherwise return to originating level.
+                mGameState.nextSceneID = isFinalBossEncounter ? 3 : (mGameState.returnSceneID >= 0 ? mGameState.returnSceneID : 0);
             }
             return;
         }
@@ -266,11 +279,37 @@ void CombatScene::initialise() {
 
         if (mState == HOLD_UP) {
             if (IsKeyPressed(KEY_Y) || IsKeyPressed(KEY_SPACE)) {
+                // Deal 100 damage to all active enemies
                 for (auto& enemy : mGameState.battleEnemies) {
-                    enemy.currentHp = 0;
-                    enemy.isAlive = false;
+                    if (!enemy.isAlive) continue;
+                    enemy.currentHp -= 100;
+                    if (enemy.currentHp <= 0) {
+                        enemy.currentHp = 0;
+                        enemy.isAlive = false;
+                    }
                 }
-                mLog = "ALL-OUT ATTACK! It's over!";
+                // Execute enemies below 50 HP (set to 0 and mark dead)
+                for (auto& enemy : mGameState.battleEnemies) {
+                    if (!enemy.isAlive) continue;
+                    if (enemy.currentHp < 50) {
+                        enemy.currentHp = 0;
+                        enemy.isAlive = false;
+                    }
+                }
+                // Clear downed state on any surviving enemies to prevent immediate re-HOLD UP
+                for (auto& enemy : mGameState.battleEnemies) {
+                    if (enemy.isAlive) enemy.isDown = false;
+                }
+                // Consume current actor's turn if combat is not over
+                bool anyAlive = false;
+                for (auto& e : mGameState.battleEnemies) { if (e.isAlive) { anyAlive = true; break; } }
+
+                mLog = "ALL-OUT ATTACK!";
+                if (anyAlive) {
+                    if (mActiveMemberIndex >= 0 && mActiveMemberIndex < (int)mGameState.party.size()) {
+                        mGameState.party[mActiveMemberIndex].hasActed = true;
+                    }
+                }
                 mState = ANIMATION_WAIT;
                 mTimer = 0.0f;
             }
@@ -291,6 +330,10 @@ void CombatScene::initialise() {
                         int targetID = GetRandomValue(0, partySize - 1);
                         if (mGameState.party[targetID].isAlive) {
                             mGameState.party[targetID].currentHp -= enemy.baseAttack;
+                            if (mGameState.party[targetID].currentHp <= 0) {
+                                mGameState.party[targetID].currentHp = 0;
+                                mGameState.party[targetID].isAlive = false;
+                            }
                             mLog = enemy.name + " attacks " + mGameState.party[targetID].name + "!";
                             // Spawn damage number near target ally
                             float tx = 100.0f; // left HUD base

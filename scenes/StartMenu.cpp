@@ -39,8 +39,10 @@ void StartMenu::update(float deltaTime)
     }
 
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
-        // Map selection to scene indices: 0 = Level One, 1 = Level Two
-        mGameState.nextSceneID = (mSelection == 0) ? 0 : 1;
+        // Map selection to scene indices: 0 = Level One, 1 = Level Two, 4 = Level Three
+        if (mSelection == 0) mGameState.nextSceneID = 0;
+        else if (mSelection == 1) mGameState.nextSceneID = 1;
+        else mGameState.nextSceneID = 4;
     }
 }
 

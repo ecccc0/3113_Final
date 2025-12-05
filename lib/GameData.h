@@ -87,7 +87,7 @@ inline std::vector<Combatant> INITIAL_PARTY()
 
     Combatant joker{};
     joker.id = 0; joker.name = "Joker"; joker.texturePath = "assets/player_joker.png";
-    joker.currentHp = joker.maxHp = 130;
+    joker.currentHp = joker.maxHp = 1;
     joker.currentSp = joker.maxSp = 60;
     joker.baseAttack = 14; joker.baseDefense = 8; // speed removed
     joker.meleeWeapon = WEP_PARADISE_LOST;
@@ -232,12 +232,12 @@ inline Combatant getEnemyData(int id) {
             enemy.baseDefense = 4;
             enemy.weaknesses = { ICE };
             break;
-        case 99: // Boss placeholder
+        case 99: // Final Boss (Weak to Curse)
             enemy.name = "Shadow Boss";
             enemy.maxHp = 400; enemy.currentHp = 400;
             enemy.baseAttack = 30;
             enemy.baseDefense = 12;
-            // No explicit weaknesses
+            enemy.weaknesses = { CURSE };
             break;
         default: // Shadow
             enemy.name = "Shadow";

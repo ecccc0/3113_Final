@@ -85,9 +85,9 @@ void LevelTwo::initialise()
     mona->setTint(SKYBLUE);
     noir->setTint(VIOLET);
 
-    skull->setAIType(AI_SENTRY); skull->setAIState(IDLE); skull->activate(); skull->setAcceleration({0.0f,0.0f});
-    mona->setAIType(AI_SENTRY);  mona->setAIState(IDLE);  mona->activate();  mona->setAcceleration({0.0f,0.0f});
-    noir->setAIType(AI_SENTRY);  noir->setAIState(IDLE);  noir->activate();  noir->setAcceleration({0.0f,0.0f});
+    skull->setAIType(AI_FOLLOWER); skull->setAIState(IDLE); skull->activate(); skull->setAcceleration({0.0f,0.0f});
+    mona->setAIType(AI_FOLLOWER);  mona->setAIState(IDLE);  mona->activate();  mona->setAcceleration({0.0f,0.0f});
+    noir->setAIType(AI_FOLLOWER);  noir->setAIState(IDLE);  noir->activate();  noir->setAcceleration({0.0f,0.0f});
 
     mFollowers.push_back(skull);
     mFollowers.push_back(mona);

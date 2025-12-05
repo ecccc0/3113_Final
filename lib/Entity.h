@@ -11,8 +11,11 @@ enum EntityType   { PLAYER, BLOCK, PLATFORM, NPC, PROP, NONE };
 enum AIType { 
     AI_GUARD,      // Patrols and chases
     AI_SENTRY,     // Stationary until player close
+    AI_BOSS,       // Stationary boss: animates, no chase
     AI_TRAP,       // Moving hazard (invincible)
-    AI_SEARCHLIGHT // Patrols; triggers global alarm, no combat
+    AI_SEARCHLIGHT, // Patrols; triggers global alarm, no combat
+    AI_NONE,
+    AI_FOLLOWER 
 };
 
 enum AIState { 

@@ -1,6 +1,6 @@
 # Source and target
 TARGET := game
-SRCS = main.cpp lib/cs3113.cpp lib/Entity.cpp lib/Map.cpp lib/Scene.cpp lib/ShaderProgram.cpp lib/Effects.cpp scenes/LevelOne.cpp scenes/LevelTwo.cpp scenes/CombatScene.cpp scenes/StartMenu.cpp
+SRCS = main.cpp lib/cs3113.cpp lib/Entity.cpp lib/Map.cpp lib/Scene.cpp lib/ShaderProgram.cpp lib/Effects.cpp scenes/LevelOne.cpp scenes/LevelTwo.cpp scenes/CombatScene.cpp scenes/StartMenu.cpp scenes/LevelThree.cpp
 BINARY := $(TARGET)
 
 # OS detection - Windows MinGW doesn't have uname, so we detect Windows differently
