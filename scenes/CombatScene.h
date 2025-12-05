@@ -61,20 +61,20 @@ private:
     // Animation
     float mWheelRotation = 0.0f; // Current rotation angle
 
-    // --- TRANSITION EFFECTS ---
+    // TRANSITION EFFECTS 
     Effects* mEffects = nullptr;
     float mTargetZoom = 1.0f; // Normal Zoom
 
-    // --- PARTY VISUAL SPRITES ---
+    // PARTY VISUAL SPRITES 
     std::vector<Entity*> mPartySprites;
 
-    // --- ENEMY ATLAS ---
+    // ENEMY ATLAS 
     Texture2D mEnemyAtlas; // NEW: combat enemy sprite atlas
 
     // Helper: compute source rect based on combat state
     Rectangle GetEnemyFrameRect(Combatant& enemy, CombatState state, float timer);
 
-    // --- DAMAGE FLOATING TEXT ---
+    // DAMAGE FLOATING TEXT 
     struct FloatingText {
         Vector2 pos;
         std::string text;
@@ -85,7 +85,7 @@ private:
     std::vector<FloatingText> mFloatingTexts;
     void SpawnFloatingText(Vector2 pos, const std::string& text, Color color, float lifetime = 0.8f);
 
-    // --- AUDIO SFX ---
+    // AUDIO SFX 
     Sound mSndMenu = {};
     Sound mSndBack = {};
     Sound mSndGun  = {};

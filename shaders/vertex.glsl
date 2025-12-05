@@ -3,19 +3,19 @@
 // Input attributes from Raylib
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
-in vec4 vertexColor;    // <--- NEW: Accept the color from Draw functions
+in vec4 vertexColor;  
 
 // Outputs to the Fragment Shader
 out vec2 fragTexCoord;
 out vec2 fragPosition;
-out vec4 fragColor;     // <--- NEW: Pass the color along
+out vec4 fragColor;   
 
 uniform mat4 mvp;
 
 void main()
 {
     fragTexCoord = vertexTexCoord;
-    fragColor = vertexColor; // <--- NEW: Assign input color to output
+    fragColor = vertexColor;
     
     // Pass raw 2D position for your lighting logic
     fragPosition = vertexPosition.xy;

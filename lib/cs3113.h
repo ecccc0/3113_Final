@@ -12,9 +12,10 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include "GameTypes.h" // for AppStatus
+
 enum TextureType { SINGLE, ATLAS       };
 
-#include "GameTypes.h" // for AppStatus
 
 Color ColorFromHex(const char *hex);
 void Normalise(Vector2 *vector);

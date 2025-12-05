@@ -107,7 +107,7 @@ void CombatScene::initialise() {
             mGameState.battleEnemies[i].position = { 600.0f + (i * 120.0f), 200.0f };
         }
 
-        // --- LOAD UI ASSETS ---
+        //  LOAD UI ASSETS
         mIconAttack = LoadTexture("assets/ui/icon_attack.png");
         mIconGun    = LoadTexture("assets/ui/icon_gun.png");
         mIconSkill  = LoadTexture("assets/ui/icon_skill.png");
@@ -127,14 +127,13 @@ void CombatScene::initialise() {
             member.hasActed = false;
         }
 
-        // Build party visual sprites (simple atlas-based entities)
+        // Build party entities
         // Clean previous
         for (Entity* e : mPartySprites) { delete e; }
         mPartySprites.clear();
         for (int i = 0; i < (int)mGameState.party.size(); i++) {
             Entity* sprite = new Entity();
             sprite->setEntityType(NPC);
-            // Use characters atlas like LevelOne
             sprite->setTexture("assets/characters.png");
             sprite->setTextureType(ATLAS);
             sprite->setSpriteSheetDimensions({5,4});
@@ -145,21 +144,20 @@ void CombatScene::initialise() {
             mPartySprites.push_back(sprite);
         }
 
-        // --- INITIALISE EFFECTS ---
+        // INITIALISE EFFECTS
         if (mEffects) delete mEffects;
         mEffects = new Effects(mOrigin, 1000.0f, 600.0f); // Screen Size
         mEffects->setEffectSpeed(2.0f); // Fast Fade In
         mEffects->start(FADEIN); // Start black, fade to transparent
 
-        // --- CAMERA SETUP ---
-        // Start VERY zoomed in for dynamic entry
+        // CAMERA SETUP
         mGameState.camera.zoom = 2.5f; 
         mGameState.camera.offset = mOrigin;
         mGameState.camera.rotation = 0.0f;
         // Center camera roughly on the battle (assuming fixed positions in render)
         mGameState.camera.target = { 500.0f, 300.0f }; // Center of screen
 
-        // --- COMBAT MAP SETUP ---
+        // COMBAT MAP SETUP
         // Build a small arena map using CombatScene::mLevelData
         if (mGameState.map) { delete mGameState.map; mGameState.map = nullptr; }
         mGameState.map = new Map(20, 20, mLevelData, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
@@ -175,7 +173,7 @@ void CombatScene::initialise() {
             mEnemyAtlas = LoadTextureFromImage(GenImageColor(32,25,RED)); // fallback
         }
 
-        // --- LOAD SFX ---
+        //  LOAD SFX
         mSndMenu = LoadSound("assets/audio/menu.wav");
         mSndBack = LoadSound("assets/audio/back.wav");
         mSndGun  = LoadSound("assets/audio/gun.wav");
@@ -189,7 +187,7 @@ void CombatScene::initialise() {
         if (mSndHeal.frameCount) SetSoundVolume(mSndHeal, gSFXVolume);
         if (mSndHit.frameCount)  SetSoundVolume(mSndHit,  gSFXVolume);
         if (mSndCrit.frameCount) SetSoundVolume(mSndCrit, gSFXVolume);
-        // --- BGM ---
+        //  BGM
         {
             if (FileExists("assets/audio/combatmusic.mp3")) {
                 mGameState.bgm = LoadMusicStream("assets/audio/combatmusic.mp3");
@@ -254,14 +252,12 @@ void CombatScene::initialise() {
     }
 
     void CombatScene::update(float deltaTime) {
-        // --- 1. UPDATE EFFECTS & ZOOM ---
+        // UPDATE EFFECTS & ZOOM
         if (mEffects) {
             // Center effect on camera target
             Vector2 camTarget = mGameState.camera.target;
             mEffects->update(deltaTime, &camTarget);
         }
-
-        // Smoothly Zoom Out to 1.0f
         
         // Check player defeat (Joker at index 0)
         bool jokerDead = false;
@@ -274,7 +270,7 @@ void CombatScene::initialise() {
         if (jokerDead) {
             mLog = "YOU DIED! Press ENTER to return to Title";
             if (IsKeyPressed(KEY_ENTER)) {
-                mGameState.nextSceneID = 3; // Start Menu (Title)
+                mGameState.nextSceneID = 3; // Start Menu
             }
             return;
         }
@@ -676,7 +672,7 @@ void CombatScene::initialise() {
             mLog = "Hit! Dealt " + std::to_string(damage) + " damage.";
             attacker.hasActed = true;
         }
-        // Spawn damage floating text at enemy position (right side column)
+        // Spawn damage floating text at enemy position
         // Find index of defender in enemy list if present
         int defIndex = -1;
         for (int i = 0; i < (int)mGameState.battleEnemies.size(); ++i) {
@@ -719,7 +715,7 @@ void CombatScene::initialise() {
                 float spriteY = 150.0f + (i * 90.0f); // vertical stack
 
                 Texture2D tex = mPartySprites[i]->getTexture();
-                // Use atlas frame #15 in a 4x5 sheet (matches your asset)
+                // Use atlas frame #15 in a 4x5 sheet
                 const int cols = 4;
                 const int rows = 5;
                 const int frameIndex = 15;
@@ -767,7 +763,6 @@ void CombatScene::initialise() {
                 DrawText("HEAL", x+220, y+20, 20, SKYBLUE);
             }
 
-            // Icon placeholder and HUD block near left edge
             // Use character icon textures for HUD
             int iconIndex = i % 4;
             Color tint = mGameState.party[i].tint;
@@ -780,7 +775,7 @@ void CombatScene::initialise() {
             DrawTextureEx(gPartyIcons[iconIndex], { x, y }, 0.0f, 0.4f, tint);
             DrawText(member.name.c_str(), x + 60, y - 10, 22, WHITE);
 
-            // Slanted HP/SP bars (reuse Task 1 style)
+            //  HP/SP bars 
             float hpPercent = (member.maxHp > 0) ? ((float)member.currentHp / (float)member.maxHp) : 0.0f;
             float spPercent = (member.maxSp > 0) ? ((float)member.currentSp / (float)member.maxSp) : 0.0f;
             if (hpPercent < 0) hpPercent = 0; if (hpPercent > 1) hpPercent = 1;
@@ -818,7 +813,7 @@ void CombatScene::initialise() {
             Rectangle source = GetEnemyFrameRect(enemy, mState, mTimer);
             Rectangle dest = { x, y, 64.0f, 50.0f };
 
-            // Draw atlas-based enemy (face left naturally; no flip)
+            // Draw atlas-based enemy (face left naturally)
             if (enemy.isAlive || (int)(source.x/32.0f) + (int)(source.y/25.0f)*8 == 20) {
                 DrawTexturePro(mEnemyAtlas, source, dest, {0,0}, 0.0f, WHITE);
             }
@@ -826,7 +821,7 @@ void CombatScene::initialise() {
             // Name and HP bar overlays above enemy
             DrawText(enemy.name.c_str(), (int)x, (int)(y-50), 20, WHITE);
 
-            // Simple thin HP bar
+            // HP bar
             int barWidth = 80;
             int barHeight = 6;
             int barX = (int)x;
@@ -837,13 +832,12 @@ void CombatScene::initialise() {
             DrawRectangle(barX, barY, barWidth, barHeight, Fade(BLACK, 0.6f));
             DrawRectangle(barX, barY, (int)(barWidth * hpPercent), barHeight, hpColor);
             DrawRectangleLines(barX, barY, barWidth, barHeight, WHITE);
-            // Move HP text below the bar, still above the enemy sprite
             DrawText(TextFormat("%d / %d", enemy.currentHp, enemy.maxHp), barX, barY + 8, 16, WHITE);
 
             if (enemy.isDown) DrawText("DOWN", (int)x, (int)(y+90), 20, SKYBLUE);
         }
 
-        // Bottom UI Panel (bottom-right half, shows only mLog)
+        // Bottom UI Panel for mLog
         DrawRectangle(500, 500, 500, 100, Fade(DARKGRAY, 0.85f));
         DrawRectangleLines(500, 500, 500, 100, WHITE);
         DrawText(mLog.c_str(), 520, 510, 20, WHITE);
@@ -868,7 +862,7 @@ void CombatScene::initialise() {
                 DrawText(TextFormat("%s (%d %s)", ab.name.c_str(), ab.cost, costType), 610, 110 + (i*30), 20, c);
             }
 
-            // Description of currently highlighted skill (mirrors target selection details)
+            // Description of currently highlighted skill
             if (!actor.skills.empty()) {
                 const Ability &chosen = actor.skills[mSelectedSkillIndex];
                 const char* costType = chosen.isMagic ? "SP" : "HP";
@@ -984,9 +978,8 @@ void CombatScene::initialise() {
             DrawText("HOLD UP! [Y] ALL OUT ATTACK", 300, 300, 30, RED);
         }
 
-        // --- RENDER COMBAT UI: Command Wheel ---
+        // RENDER COMBAT UI: Command Wheel 
         if (mState == PLAYER_TURN_MAIN) {
-            // Shift command wheel slightly right to avoid HUD overlap
             Vector2 center = { 150.0f, 500.0f };
             float radius = 80.0f;
             DrawCircleV(center, radius + 10, Fade(RED, 0.5f));
@@ -1013,7 +1006,7 @@ void CombatScene::initialise() {
             }
         }
 
-        // --- RENDER CURSOR OVER ENEMY DURING TARGETING ---
+        // RENDER CURSOR OVER ENEMY DURING TARGETING 
         if (mState == PLAYER_TURN_TARGET) {
             if (mSelectedTargetIndex >= 0 && mSelectedTargetIndex < mGameState.battleEnemies.size()) {
                 float ex = 600 + (mSelectedTargetIndex * 120);

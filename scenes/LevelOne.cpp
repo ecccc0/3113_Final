@@ -120,16 +120,7 @@ void LevelOne::initialise()
     mFollowers.push_back(noir);
 
 
-    // --- BGM: Level Exploration ---
-    if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
-    if (FileExists("assets/audio/levelmusic.mp3")) {
-        mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
-        SetMusicVolume(mGameState.bgm, gMusicVolume);
-        PlayMusicStream(mGameState.bgm);
-    }
-
-    // 3. CREATE ENEMIES (guards) ONLY IF NOT DEFEATED
-    // Expand to multiple guards at specified positions
+    // CREATE ENEMIES (guards) ONLY IF NOT DEFEATED
     std::vector<Vector2> guardPositions = {
         { 570.0f,  350.0f },
         { 784.0f,  688.0f },
@@ -141,7 +132,7 @@ void LevelOne::initialise()
         mGameState.defeatedEnemies.resize(guardPositions.size(), false);
     }
 
-    // Stable indexing: allocate full array and deactivate defeated ones
+    // allocate array and deactivate defeated ones
     mGameState.enemyCount = static_cast<int>(guardPositions.size());
     if (mGameState.enemyCount > 0) {
         mGameState.worldEnemies = new Entity[mGameState.enemyCount];
@@ -184,7 +175,7 @@ void LevelOne::initialise()
         mGameState.worldEnemies = nullptr;
     }
 
-    // 3b. CREATE CHEST PROPS (array form for collisions)
+    // CREATE CHEST PROPS
     std::vector<Vector2> chestPositions = {
         { 867.0f,  176.0f },
         { 612.0f, 653.0f },
@@ -206,13 +197,12 @@ void LevelOne::initialise()
         mWorldProps[i].setAcceleration({0.0f,0.0f});
     }
 
-    // 4. SETUP CAMERA
+    // SETUP CAMERA
     mGameState.camera.target = mGameState.player->getPosition();
     mGameState.camera.offset = mOrigin;
     mGameState.camera.rotation = 0.0f;
     mGameState.camera.zoom = 2.0f;
 
-    // --- 5. INITIALISE EFFECTS ---
     // Initialize Effects with screen dimensions (1000x600)
     if (mEffects) delete mEffects;
     mEffects = new Effects(mOrigin, 1000.0f, 600.0f);
@@ -220,32 +210,30 @@ void LevelOne::initialise()
 
     mIsTransitioning = false;
 
-    // --- BGM: Level Exploration ---
+    // BGM
     if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
-    if (FileExists("assets/audio/levelmusic.mp3")) {
-        mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
-        SetMusicVolume(mGameState.bgm, gMusicVolume);
-        PlayMusicStream(mGameState.bgm);
-    }
+    mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
+    SetMusicVolume(mGameState.bgm, gMusicVolume);
+    PlayMusicStream(mGameState.bgm);
+
 }
 
 void LevelOne::update(float deltaTime)
 {
     // Keep exploration music streaming
     if (mGameState.bgm.ctxData) { SetMusicVolume(mGameState.bgm, gMusicVolume); UpdateMusicStream(mGameState.bgm); }
-    // --- 1. HANDLE TRANSITION SEQUENCE ---
+    // HANDLE TRANSITION SEQUENCE
     if (mIsTransitioning)
     {
-        // A. Update Effect (Fade Out)
-        // Pass camera target as view offset so overlay stays centered on screen
+        // Update Effect 
         Vector2 camTarget = mGameState.camera.target;
         if (mEffects) mEffects->update(deltaTime, &camTarget);
 
-        // B. Zoom In Camera
+        // Zoom In Camera
         mGameState.camera.zoom += 2.0f * deltaTime; // Zoom speed
         if (mGameState.camera.zoom > mTargetZoom) mGameState.camera.zoom = mTargetZoom;
 
-        // C. Check Completion
+        // Check Completion
         // If alpha is fully solid (Black), switch scene
         if (mEffects && mEffects->getAlpha() >= Effects::SOLID) {
              mGameState.nextSceneID = 2; // Switch to Combat
@@ -253,17 +241,16 @@ void LevelOne::update(float deltaTime)
         return; // Block other updates (Movement/Input) during transition
     }
 
-    // --- 2. STANDARD UPDATE (Keep existing logic) ---
-    // --- PLAYER UPDATE & MAP INTERACTION ---
-    // Let player collide against props for tactile interaction
+    // PLAYER UPDATE & MAP INTERACTION
     mGameState.player->update(deltaTime, mGameState.player, mGameState.map, mWorldProps, mPropCount);
+    // reveal tiles around player
     if (mGameState.map && mGameState.player)
     {
         Vector2 pPos = mGameState.player->getPosition();
         mGameState.map->revealTiles(pPos, 200.0f);
     }
 
-    // --- FOLLOWER PARTY PHYSICS ---
+    // FOLLOWER PARTY PHYSICS
     constexpr float TETHER_SPEED    = 0.08f;
     constexpr float REPEL_STRENGTH  = 20000.0f;
     constexpr float JITTER_STRENGTH = 5.0f;
@@ -274,13 +261,13 @@ void LevelOne::update(float deltaTime)
             TETHER_SPEED, REPEL_STRENGTH, JITTER_STRENGTH, DAMPING);
     }
 
-    // --- STEALTH / DETECTION CONSTANTS ---
+    // STEALTH / DETECTION CONSTANTS 
     const float AMBUSH_DISTANCE = 60.0f; // Close range for back attack
     const float SIGHT_DISTANCE  = 100.0f;
     const float SIGHT_ANGLE     = 90.0f; // Full cone angle
     bool isSpotted = false; // Aggregate spotted state (for shader/effects)
 
-    // --- PROP INTERACTION (CHESTS) ---
+    // PROP INTERACTION (CHESTS) ---
     if (IsKeyPressed(KEY_SPACE)) {
         Entity* player = mGameState.player;
         for (int i = 0; i < mPropCount; ++i) {
@@ -301,19 +288,19 @@ void LevelOne::update(float deltaTime)
         }
     }
 
-    // --- PROGRESSION: Advance when all chests are opened ---
-    {
-        bool allChestsOpened = true;
-        for (int i = 0; i < mPropCount; ++i) {
-            Entity* prop = &mWorldProps[i];
-            if (prop->isChest() && prop->isActive()) { allChestsOpened = false; break; }
-        }
-        if (allChestsOpened) {
-            mGameState.nextSceneID = 1; // LevelTwo
-        }
+    //  PROGRESSION: Advance when all chests are opened 
+    
+    bool allChestsOpened = true;
+    for (int i = 0; i < mPropCount; ++i) {
+        Entity* prop = &mWorldProps[i];
+        if (prop->isChest() && prop->isActive()) { allChestsOpened = false; break; }
     }
+    if (allChestsOpened) {
+        mGameState.nextSceneID = 1; // LevelTwo
+    }
+    
 
-    // --- ENEMY UPDATE & COMBAT TRIGGERS ---
+    //  ENEMY UPDATE & COMBAT TRIGGERS 
     for (int i = 0; i < mGameState.enemyCount; i++)
     {
         Entity* enemy  = &mGameState.worldEnemies[i];
@@ -322,10 +309,8 @@ void LevelOne::update(float deltaTime)
         enemy->update(deltaTime, player, mGameState.map, NULL, 0);
         if (!enemy->isActive()) continue;
 
-        // A. Detection (view cone)
+        // Detection (view cone)
         bool inSight = enemy->isEntityInSight(player, SIGHT_DISTANCE, SIGHT_ANGLE);
-        // Optional: line-of-sight check via map raycast (commented placeholder)
-        // if (inSight && mGameState.map && !mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) inSight = false;
         if (inSight && mGameState.map) {
              if (!mGameState.map->hasLineOfSight(enemy->getPosition(), player->getPosition())) {
                  inSight = false;
@@ -343,7 +328,7 @@ void LevelOne::update(float deltaTime)
             mGameState.shaderStatus = 0; // Normal
         }
 
-        // B. Ambush Attempt (player advantage)
+        // Ambush Attempt (player advantage)
         if (IsKeyPressed(KEY_SPACE)) {
             float distToEnemy = Vector2Distance(player->getPosition(), enemy->getPosition());
             if (distToEnemy < AMBUSH_DISTANCE) {
@@ -361,9 +346,8 @@ void LevelOne::update(float deltaTime)
             }
         }
 
-        // C. Collision Trigger
+        // Collision Trigger
         if (player->isColliding(enemy)) {
-            std::cout << "COLLISION! Transitioning..." << std::endl;
             // START TRANSITION
             mIsTransitioning = true;
             if (mEffects) mEffects->start(FADEOUT);
@@ -380,7 +364,7 @@ void LevelOne::update(float deltaTime)
         mGameState.shaderStatus = 0; // Normal
     }
 
-    // --- CAMERA FOLLOW ---
+    // CAMERA FOLLOW
     mGameState.camera.target = mGameState.player->getPosition();
 }
 
@@ -408,7 +392,7 @@ void LevelOne::render()
     // Draw Player
     if (mGameState.player) mGameState.player->render();
 
-    // DEBUG: Draw enemy view cones (simple sectors)
+    // Draw enemy view cones (simple sectors)
     for (int i = 0; i < mGameState.enemyCount; i++)
     {
         Entity* e = &mGameState.worldEnemies[i];

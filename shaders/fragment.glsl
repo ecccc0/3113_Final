@@ -7,7 +7,7 @@ uniform int status;
 // Input from Vertex Shader
 in vec2 fragTexCoord;
 in vec2 fragPosition;
-in vec4 fragColor;      // <--- NEW: Receive the color
+in vec4 fragColor;  
 
 out vec4 finalColor;
 
@@ -24,22 +24,24 @@ float attenuate(float distance, float linearTerm, float quadraticTerm)
 
 void main()
 {
-    // 1. Calculate Lighting
+    // Calculate Lighting
     float dist = distance(lightPosition, fragPosition);
     float brightness = attenuate(dist, LINEAR_TERM, QUADRATIC_TERM);
 
-    // 2. Fetch Texture Color AND Multiply by Vertex Color
-    // This restores the Red/Transparent tints from your code
+    // Fetch Texture Color AND Multiply by Vertex Color
+    // This restores the Red/Transparent tints
     vec4 texColor = texture(texture0, fragTexCoord) * fragColor; 
     
-    // 3. Apply Lighting (Keep alpha intact)
+    // Apply Lighting (Keep alpha intact)
     vec4 litColor = vec4(texColor.rgb * brightness, texColor.a);
 
-    // 4. Apply Status Logic (Spotted/Hidden)
+    // Apply Status Logic (Spotted/Hidden)
     if (status == 1) // SPOTTED: Red Tint
     {
-        // Mix with pure red, preserving original alpha
-        finalColor = mix(litColor, vec4(1.0, 0.0, 0.0, litColor.a), 0.3); 
+        // blend RGB toward red by 30%, preserve alpha
+        float tint = 0.3;
+        vec3 spottedRGB = litColor.rgb * (1.0 - tint) + vec3(1.0, 0.0, 0.0) * tint;
+        finalColor = vec4(spottedRGB, litColor.a);
     }
     else if (status == 2) // HIDDEN: Darken
     {

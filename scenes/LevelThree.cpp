@@ -17,7 +17,6 @@ void LevelThree::initialise()
     if (mWorldProps) { delete[] mWorldProps; mWorldProps = nullptr; mPropCount = 0; }
 
     if (mGameState.map) { delete mGameState.map; mGameState.map = nullptr; }
-    // Use CombatScene-sized arena map (20x20)
     mGameState.map = new Map(20, 20, mLevelData, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
     if (mGameState.map) {
         mGameState.map->revealTiles(mOrigin, 2000.0f);
@@ -48,7 +47,7 @@ void LevelThree::initialise()
         mGameState.hasReturnSpawnPos = false;
     }
 
-    // Followers (same as LevelTwo)
+    // Followers
     Vector2 playerPos = mGameState.player->getPosition();
     const float spacing = 40.0f;
     Entity* skull = new Entity();
@@ -96,7 +95,7 @@ void LevelThree::initialise()
     mFollowers.push_back(mona);
     mFollowers.push_back(noir);
 
-    // One boss sentry on the right, scaled up
+    // One boss on the right, scaled up
     {
         mGameState.enemyCount = 1;
         mGameState.worldEnemies = new Entity[mGameState.enemyCount];
@@ -126,7 +125,6 @@ void LevelThree::initialise()
         mGameState.worldEnemies[0].setColliderDimensions({ 40.0f, 40.0f });
     }
 
-    // No props for LevelThree (boss arena)
     mWorldProps = nullptr;
     mPropCount = 0;
 
@@ -141,7 +139,7 @@ void LevelThree::initialise()
     mEffects->setEffectSpeed(2.0f);
     mIsTransitioning = false;
 
-    // --- BGM: Level Exploration (same track) ---
+    // BGM
     if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
     if (FileExists("assets/audio/levelmusic.mp3")) {
         mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
@@ -153,7 +151,7 @@ void LevelThree::initialise()
 void LevelThree::update(float deltaTime)
 {
     if (mGameState.bgm.ctxData) { SetMusicVolume(mGameState.bgm, gMusicVolume); UpdateMusicStream(mGameState.bgm); }
-    // Player update & map interaction (guard against nulls)
+    // Player update & map interaction
     if (mGameState.player) {
         mGameState.player->update(deltaTime, mGameState.player, mGameState.map, mWorldProps, mPropCount);
     }
@@ -176,7 +174,7 @@ void LevelThree::update(float deltaTime)
     const float AMBUSH_DISTANCE = 60.0f;
     bool isSpotted = false;
 
-    // Boss sentry: idle until collision/ambush triggers combat
+    // Boss: idle until collision/ambush triggers combat
     for (int i = 0; i < mGameState.enemyCount; ++i) {
         if (!mGameState.worldEnemies) break;
         Entity* enemy = &mGameState.worldEnemies[i];
@@ -198,7 +196,7 @@ void LevelThree::update(float deltaTime)
             }
         }
 
-        // Collision triggers combat (no vision cones here)
+        // Collision triggers combat
         if (player && player->isColliding(enemy)) {
             mGameState.engagedEnemyIndex = i;
             mGameState.returnSceneID     = gCurrentLevelIndex;
@@ -216,8 +214,6 @@ void LevelThree::render()
 {
     if (mGameState.map) mGameState.map->render();
 
-
-    // No props
 
     if (mGameState.worldEnemies) {
         for (int i = 0; i < mGameState.enemyCount; ++i) {

@@ -2,7 +2,6 @@
 #define ENTITY_H
 
 #include "Map.h"
-#include <deque> // Required for Breadcrumb/Follower system
 
 enum Direction    { LEFT, UP, RIGHT, DOWN, NEUTRAL     };
 enum EntityStatus { ACTIVE, INACTIVE                   };
@@ -80,8 +79,7 @@ private:
     // if true, source faces Left (new enemy asset).
     bool mSpriteFacesLeft = false; // NEW: Defaults to false (Standard Right-facing)
 
-    // Follower System: Breadcrumbs
-    std::deque<Vector2> mPositionHistory; 
+    // Follower System: Breadcrumbs (REMOVED: not used by follower physics)
 
     void checkCollisionY(Entity *collidableEntities, int collisionCheckCount);
     void checkCollisionY(Map *map);
@@ -163,7 +161,6 @@ public:
     EntityType  getEntityType()            const { return mEntityType;            }
     AIType      getAIType()                const { return mAIType;                }
     AIState     getAIState()               const { return mAIState;               }
-    std::deque<Vector2>& getPositionHistory()    { return mPositionHistory;       }
 
     bool isCollidingTop()    const { return mIsCollidingTop;    }
     bool isCollidingBottom() const { return mIsCollidingBottom; }

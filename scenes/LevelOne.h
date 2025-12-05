@@ -19,7 +19,6 @@ public:
     void shutdown() override; 
 private:
     // Level-specific enemy defeat flags cached locally for convenience
-    // (Mirror of global gSceneEnemyDefeated[sceneIndex])
     std::vector<bool> mEnemyDefeated;
     // Party follower entities (Skull, Mona, Noir)
     std::vector<Entity*> mFollowers;
@@ -27,7 +26,7 @@ private:
     Entity* mWorldProps = nullptr;
     int     mPropCount  = 0;
 
-    // --- TRANSITION EFFECTS ---
+    //  TRANSITION EFFECTS 
     Effects* mEffects = nullptr;
     bool mIsTransitioning = false;
     float mTargetZoom = 3.0f; // How far to zoom in before switching

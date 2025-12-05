@@ -24,7 +24,6 @@ private:
     bool mIsTransitioning = false;
     float mTargetZoom = 3.0f;
 
-    // Use the same compact arena map as CombatScene (20x20)
     unsigned int mLevelData[20*20] = {
         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
         1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,

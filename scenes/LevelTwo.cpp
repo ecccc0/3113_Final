@@ -236,7 +236,7 @@ void LevelTwo::initialise()
     mEffects->setEffectSpeed(2.0f);
     mIsTransitioning = false;
 
-    // --- BGM: Level Exploration ---
+    // BGM
     if (mGameState.bgm.ctxData) { StopMusicStream(mGameState.bgm); UnloadMusicStream(mGameState.bgm); }
     if (FileExists("assets/audio/levelmusic.mp3")) {
         mGameState.bgm = LoadMusicStream("assets/audio/levelmusic.mp3");
@@ -255,7 +255,7 @@ void LevelTwo::update(float deltaTime)
         mGameState.camera.zoom += 2.0f * deltaTime;
         if (mGameState.camera.zoom > mTargetZoom) mGameState.camera.zoom = mTargetZoom;
         if (mEffects && mEffects->getAlpha() >= Effects::SOLID) {
-             mGameState.nextSceneID = 2; // Switch to Combat (unused here)
+             mGameState.nextSceneID = 2; // Switch to Combat
         }
         return;
     }
@@ -278,7 +278,7 @@ void LevelTwo::update(float deltaTime)
             TETHER_SPEED, REPEL_STRENGTH, JITTER_STRENGTH, DAMPING);
     }
 
-    // --- STEALTH / DETECTION CONSTANTS ---
+    // STEALTH / DETECTION CONSTANTS
     const float AMBUSH_DISTANCE = 60.0f;
     const float SIGHT_DISTANCE  = 100.0f;
     const float SIGHT_ANGLE     = 90.0f;
@@ -293,7 +293,7 @@ void LevelTwo::update(float deltaTime)
             float dist = Vector2Distance(player->getPosition(), prop->getPosition());
             if (dist < 50.0f) {
                 if (player->isEntityInSight(prop, 60.0f, 60.0f)) {
-                    Item loot = getRandomChestItem(1); // Level two table
+                    Item loot = getRandomChestItem(1);
                     mGameState.inventory.push_back(loot);
                     mGameState.itemToast = std::string("Obtained: ") + loot.name;
                     mGameState.itemToastTimer = 2.0f;
@@ -344,7 +344,7 @@ void LevelTwo::update(float deltaTime)
         }
 
         if (player->isColliding(enemy)) {
-            // If colliding with a searchlight: awaken all sentries, do NOT start combat
+            // If colliding with a searchlight: awaken all sentries, 
             if (enemy->getAIType() == AI_SEARCHLIGHT) {
                 for (int j = 0; j < mGameState.enemyCount; ++j) {
                     Entity* e2 = &mGameState.worldEnemies[j];

@@ -35,10 +35,7 @@ Entity::Entity(Vector2 position, Vector2 scale, const char *textureFilepath,
 
 Entity::~Entity() { UnloadTexture(mTexture); };
 
-// ----------------------------------------------------------------
-// COLLISION LOGIC (UPDATED FOR TOP-DOWN)
-// ----------------------------------------------------------------
-
+// COLLISION LOGIC
 void Entity::checkCollisionY(Entity *collidableEntities, int collisionCheckCount)
 {
     for (int i = 0; i < collisionCheckCount; i++)
@@ -193,9 +190,7 @@ bool Entity::isColliding(Entity *other) const
     return false;
 }
 
-// ----------------------------------------------------------------
 // AI & UPDATE LOGIC
-// ----------------------------------------------------------------
 
 void Entity::animate(float deltaTime)
 {
@@ -219,9 +214,7 @@ void Entity::animate(float deltaTime)
 }
 
 
-// ------------------------------------------------------------
-// Phase 2: Central AI Execution
-// ------------------------------------------------------------
+// Central AI Execution
 void Entity::aiExecute(Entity* player, Map* map, float deltaTime)
 {
     switch (mAIType)
@@ -282,7 +275,6 @@ void Entity::aiExecute(Entity* player, Map* map, float deltaTime)
         // Patrol behavior, longer/narrower vision cone to trigger alarm
         aiPatrol(deltaTime);
         if (player && isEntityInSight(player, 150.0f, 45.0f)) {
-            // No combat trigger; set global alarm via player timer
             player->setAlarmTimer(6.0f);
             mAIState = AI_AWAKENED;
         }
@@ -354,10 +346,10 @@ void Entity::aiChase(Entity* player, float deltaTime)
 // Guard composite: handle patrol/chase/return transitions and detection.
 void Entity::aiGuard(Entity* player, Map* map, float deltaTime)
 {
-    // 1. Preliminary Cone Check (Distance & Angle)
+    //  Preliminary Cone Check (Distance & Angle)
     bool canSeePlayer = player ? isEntityInSight(player, 100.0f, 90.0f) : false;
 
-    // 2. Raycast Check
+    //  Raycast Check
     // If the simple cone check passes, we must verify NO WALLS exist between them.
     if (canSeePlayer && map != nullptr)
     {
@@ -408,7 +400,7 @@ void Entity::aiGuard(Entity* player, Map* map, float deltaTime)
 
 void Entity::moveTowards(Vector2 target, float deltaTime)
 {
-    (void)deltaTime; // Not needed; movement scaled later by update()
+    (void)deltaTime; 
     Vector2 directionRaw = Vector2Subtract(target, mPosition);
     if (Vector2Length(directionRaw) > 0.0f)
         mMovement = Vector2Normalize(directionRaw);
@@ -433,39 +425,29 @@ void Entity::update(float deltaTime, Entity *player, Map *map,
 
     resetColliderFlags();
 
-    // 1. NORMALIZE MOVEMENT (Prevent fast diagonal movement)
+    // NORMALIZE MOVEMENT (Prevent fast diagonal movement)
     if (Vector2Length(mMovement) > 0) {
         mMovement = Vector2Normalize(mMovement);
     }
 
-    // 2. UPDATE VELOCITY (No Gravity)
+    // UPDATE VELOCITY (No Gravity)
     // We can still add Acceleration here if we want "slippery" movement,
     // otherwise, we just set velocity directly from movement * speed.
     mVelocity.x = mMovement.x * mSpeed;
     mVelocity.y = mMovement.y * mSpeed;
 
-    // 3. APPLY X MOVEMENT & COLLISION
+    // APPLY X MOVEMENT & COLLISION
     mPosition.x += mVelocity.x * deltaTime;
     checkCollisionX(collidableEntities, collisionCheckCount);
     checkCollisionX(map);
 
-    // 4. APPLY Y MOVEMENT & COLLISION
+    // APPLY Y MOVEMENT & COLLISION
     mPosition.y += mVelocity.y * deltaTime;
     checkCollisionY(collidableEntities, collisionCheckCount);
     checkCollisionY(map);
 
-    // 5. UPDATE POSITION HISTORY (Breadcrumbs)
-    // Always record for Player to ensure consistent breadcrumb trail;
-    // for other entities, only when they moved.
-    if (mEntityType == PLAYER || Vector2Length(mVelocity) > 0.0f) {
-        mPositionHistory.push_front(mPosition);
-        // Maintain manageable buffer size (200 is sufficient; need >=6 for follower logic).
-        if (mPositionHistory.size() > 200) {
-            mPositionHistory.pop_back();
-        }
-    }
 
-    // 6. ANIMATE
+    // ANIMATE
     // Animate when moving; also allow idle animation for bosses
     if (mTextureType == ATLAS && (Vector2Length(mMovement) != 0 || mAIType == AI_BOSS))
         animate(deltaTime);
@@ -558,8 +540,8 @@ Vector2 Entity::getDirectionVector() const
         case RIGHT: return {  1.0f,  0.0f };
         case UP:    return {  0.0f, -1.0f };
         case DOWN:  return {  0.0f,  1.0f };
-        case NEUTRAL: return {  0.0f,  1.0f }; // Treat neutral as DOWN for cone math
-        default:    return {  0.0f,  1.0f }; // Default DOWN
+        case NEUTRAL: return {  0.0f,  1.0f }; 
+        default:    return {  0.0f,  1.0f };
     }
 }
 
@@ -595,7 +577,7 @@ bool Entity::isEntityInSight(Entity* other, float viewDistance, float viewAngleD
 }
 
 // Attacker is considered "behind" victim if they face roughly the same direction.
-// Dot > 0.5 (~60 deg alignment) considered acceptable.
+// Dot > 0.5 considered acceptable.
 bool Entity::checkAmbush(Entity* victim)
 {
     if (!victim || !victim->isActive() || !this->isActive()) return false;
@@ -604,9 +586,7 @@ bool Entity::checkAmbush(Entity* victim)
     return (Vector2DotProduct(myDir, theirDir) > 0.5f);
 }
 
-// ----------------------------------------------------------------
 // FOLLOWER PHYSICS (Elastic Tether + Personal Space + Jitter + Integration)
-// ----------------------------------------------------------------
 static bool CanPlaceEntityAt(Map* map, Vector2 pos, Vector2 colliderDimensions)
 {
     if (map == nullptr) return true;
@@ -663,8 +643,6 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         mVelocity = {0.0f, 0.0f};
         mMovement = {0.0f, 0.0f};
         resetColliderFlags();
-        mPositionHistory.clear();
-        mPositionHistory.push_front(mPosition);
 
         // No further physics this frame
         return;
@@ -678,18 +656,11 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         mMovement = {0.0f, 0.0f};
         mIsCollidingLeft = mIsCollidingRight = mIsCollidingTop = mIsCollidingBottom = false;
         mDirection = NEUTRAL;
-        // Keep breadcrumb minimal to avoid history spam
-        if (mPositionHistory.empty() || Vector2Distance(mPositionHistory.front(), mPosition) > 0.5f)
-            mPositionHistory.push_front(mPosition);
-        if (mPositionHistory.size() > 200) mPositionHistory.pop_back();
         return;
     }
 
-    // A. TETHER FORCE (Attraction to past leader position for smoother path)
-    Vector2 targetPos;
-    const std::deque<Vector2>& history = leader->getPositionHistory();
-    if (history.size() > 5) targetPos = history[5];
-    else targetPos = leader->getPosition();
+    // A. TETHER FORCE (Attraction directly to leader position)
+    Vector2 targetPos = leader->getPosition();
     Vector2 tether = Vector2Scale(Vector2Subtract(targetPos, currentPos), tetherSpeed);
 
     // B. SEPARATION FORCE (Inverse-square repulsion)
@@ -754,11 +725,7 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
     mPosition.y += mVelocity.y * deltaTime;
     checkCollisionY(map);
 
-    // Record breadcrumb if moved (maintain history for next followers)
-    if (Vector2Length(mVelocity) > 0.0f) {
-        mPositionHistory.push_front(mPosition);
-        if (mPositionHistory.size() > 200) mPositionHistory.pop_back();
-    }
+    // Breadcrumb recording removed
 
     // Derive movement vector for animation/direction with idle threshold
     float vmag = Vector2Length(mVelocity);

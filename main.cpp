@@ -10,7 +10,7 @@
 #include <iostream>
 #include <unordered_map>
 
-// --- GLOBALS ---
+// GLOBALS 
 constexpr int SCREEN_WIDTH  = 1000;
 constexpr int SCREEN_HEIGHT = 600;
 constexpr int TARGET_FPS    = 60;
@@ -32,14 +32,14 @@ Scene *gCurrentScene = nullptr;
 std::vector<Scene*> gLevels;
 std::vector<Combatant> gParty; // Defined here, populated from GameData
 std::vector<Item> gInventory;  // Player inventory
-// --- EQUIPMENT GLOBALS ---
+// EQUIPMENT GLOBALS 
 std::vector<Equipment> gOwnedEquipment; // The "Bag" of unequipped items
 int gSelectedEquipSlot = 0; // 0=Melee, 1=Gun, 2=Armor
 
-// --- HUD ICONS ---
+// HUD ICONS
 Texture2D gPartyIcons[4]; // Joker, Skull, Mona, Noir
 
-// --- PERSONA GLOBALS ---
+// PERSONA GLOBALS
 std::vector<Persona> gOwnedPersonas;
 int gEquippedPersonaIdx = 0; // Index in gOwnedPersonas
 
@@ -111,7 +111,7 @@ float gSFXVolume    = 0.8f;
 float gmusicvolume  = 0.8f;
 float gsfxvolume    = 0.8f;
 
-// --- SFX (loaded at init) ---
+// SFX
 Sound gSndBack{};
 Sound gSndCrit{};
 Sound gSndGun{};
@@ -128,7 +128,7 @@ static void ApplySFXVolumes() {
     if (gSndMenu.frameCount) SetSoundVolume(gSndMenu, gSFXVolume);
 }
 
-// Helper: Draw a slanted/parallelogram rectangle (Persona-style)
+// Helper: Draw a slanted/parallelogram rectangle
 void DrawSlantedRect(int x, int y, int width, int height, int skew, Color color) {
     Vector2 v1 = { (float)x + (float)skew, (float)y };
     Vector2 v2 = { (float)x, (float)y + (float)height };
@@ -293,10 +293,10 @@ void processInput()
         }
     }
 
-    // PAUSED input: extended navigation (Skills -> Target Ally, System -> Audio)
+    // PAUSED input: extended navigation
     if (gGameStatus == PAUSED) 
     {
-        // --- 1. BACK / CANCEL LOGIC ---
+        //  BACK / CANCEL LOGIC
         if (!gPauseJustOpened && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_C))) {
             if (gSndBack.frameCount) PlaySound(gSndBack);
             switch (gPauseState) {
@@ -337,9 +337,9 @@ void processInput()
             return; // Skip other input this frame
         }
 
-        // --- 2. NAVIGATION & INTERACTION ---
+        // NAVIGATION & INTERACTION
         
-        // A. MAIN MENU
+        // MAIN MENU
         if (gPauseState == P_MAIN) {
             // Options: SKILL, ITEM, EQUIP, PERSONA, SYSTEM
             const int OPTION_COUNT = 5;
@@ -370,7 +370,7 @@ void processInput()
             }
         }
 
-        // B. PARTY SELECTION (Shared for SKILL & EQUIP)
+        // PARTY SELECTION (Shared for SKILL & EQUIP)
         else if (gPauseState == P_PARTY_SELECT) {
             if (!gParty.empty()) {
                 if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
@@ -389,7 +389,7 @@ void processInput()
                 }
             }
         }
-        // C2. ITEM LIST (Inventory) -> choose item
+        // ITEM LIST (Inventory) -> choose item
         else if (gPauseState == P_ITEM_LIST) {
             std::vector<ItemGroup> groups = BuildInventoryGroups();
             if (groups.empty()) {
@@ -412,7 +412,7 @@ void processInput()
             }
         }
 
-        // D2. ITEM TARGETING (Apply item to ally)
+        // ITEM TARGETING (Apply item to ally)
         else if (gPauseState == P_ITEM_TARGET_ALLY) {
             if (!gParty.empty()) {
                 if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
@@ -457,7 +457,7 @@ void processInput()
             }
         }
 
-        // C. SKILL LIST (Healing Only)
+        // SKILL LIST (Healing Only)
         else if (gPauseState == P_SKILL_LIST) {
             Combatant& actor = gParty[gSelectedMemberIdx];
             std::vector<int> healIndices = GetHealingSkillIndices(actor);
@@ -485,7 +485,7 @@ void processInput()
             }
         }
 
-        // D. SKILL TARGETING (Apply the Heal)
+        // SKILL TARGETING (Apply the Heal)
         else if (gPauseState == P_SKILL_TARGET_ALLY) {
             if (!gParty.empty()) {
                 if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + (int)gParty.size()) % (int)gParty.size(); if (gSndMenu.frameCount) PlaySound(gSndMenu); }
@@ -509,13 +509,12 @@ void processInput()
 
                 if (gSndHeal.frameCount) PlaySound(gSndHeal); // Audio Feedback
                 
-                // Return to list or stay? Usually return to list.
                 gPauseState = P_SKILL_LIST;
                 gSubMenuSelection = 0; // Reset cursor or keep it
             }
         }
 
-        // E. SYSTEM MENU
+        // SYSTEM MENU
         else if (gPauseState == P_SYSTEM) {
             // Options: 0: Audio, 1: Quit
             if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + 2) % 2; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
@@ -532,7 +531,7 @@ void processInput()
             }
         }
 
-        // F. AUDIO SETTINGS
+        // AUDIO SETTINGS
         else if (gPauseState == P_AUDIO_SETTINGS) {
             // 0: Master, 1: Music, 2: SFX
             if (IsKeyPressed(KEY_UP))   { gSubMenuSelection = (gSubMenuSelection - 1 + 3) % 3; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
@@ -543,9 +542,9 @@ void processInput()
             if (gSubMenuSelection == 0) {
                 targetVol = &gMasterVolume;
             } else if (gSubMenuSelection == 1) {
-                targetVol = &gmusicvolume;
+                targetVol = &gMusicVolume;
             } else if (gSubMenuSelection == 2) {
-                targetVol = &gsfxvolume;
+                targetVol = &gSFXVolume;
             }
 
             if (targetVol) {
@@ -556,19 +555,15 @@ void processInput()
                 if (*targetVol < 0.0f) *targetVol = 0.0f;
                 if (*targetVol > 1.0f) *targetVol = 1.0f;
 
-                // Apply Master immediately (others are used when playing sounds)
                 // Apply Master immediately
                 if (gSubMenuSelection == 0) {
                     SetMasterVolume(gMasterVolume);
                 }
-                // Mirror lowercase values into canonical globals for use elsewhere
-                gMusicVolume = gmusicvolume;
-                gSFXVolume   = gsfxvolume;
                 ApplySFXVolumes();
             }
         }
         
-        // G. PERSONA MENU (Switching)
+        // PERSONA MENU (Switching)
         else if (gPauseState == P_PERSONA) {
             if (!gOwnedPersonas.empty()) {
                 // Navigate List
@@ -578,12 +573,11 @@ void processInput()
                 // Equip Selection
                 if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SPACE)) {
                     EquipPersona(gSubMenuSelection);
-                    // PlaySound(gSndEquip);
                 }
             }
         }
 
-        // H. EQUIP VIEW (Select Slot)
+        // EQUIP VIEW (Select Slot)
         else if (gPauseState == P_EQUIP_VIEW) {
             // 0=Melee, 1=Gun, 2=Armor
             if (IsKeyPressed(KEY_UP))   { gSelectedEquipSlot = (gSelectedEquipSlot - 1 + 3) % 3; if (gSndMenu.frameCount) PlaySound(gSndMenu); }
@@ -597,7 +591,7 @@ void processInput()
             }
         }
 
-        // I. EQUIP LIST (Select Item & Swap)
+        // EQUIP LIST (Select Item & Swap)
         else if (gPauseState == P_EQUIP_LIST) {
             // Determine Type based on previous slot selection
             EquipmentType targetType = (gSelectedEquipSlot == 0) ? EQUIP_MELEE : 
@@ -615,16 +609,16 @@ void processInput()
                     Combatant& c = gParty[gSelectedMemberIdx];
                     int realIdx = validIndices[gSubMenuSelection];
                     
-                    // 1. Get references
+                    // Get references
                     Equipment newEquip = gOwnedEquipment[realIdx];
                     Equipment oldEquip;
 
-                    // 2. Identify current equip to swap out
+                    // Identify current equip to swap out
                     if (targetType == EQUIP_MELEE) oldEquip = c.meleeWeapon;
                     else if (targetType == EQUIP_GUN) oldEquip = c.gunWeapon;
                     else oldEquip = c.armor;
 
-                    // 3. Perform Swap
+                    // Perform Swap
                     // Remove new item from bag
                     gOwnedEquipment.erase(gOwnedEquipment.begin() + realIdx);
                     // Add old item to bag
@@ -644,14 +638,12 @@ void processInput()
     }
 
     // Combat input is handled within CombatScene itself
-    // menu scene not implemented yet
 }
 
 
 void update() 
 {
-    // Keep music updating if desired; world updates only when not paused
-    // Always update current scene music stream if valid
+    // Always update current scene music stream 
     if (gCurrentScene && gCurrentScene->getState().bgm.ctxData) {
         UpdateMusicStream(gCurrentScene->getState().bgm);
         SetMusicVolume(gCurrentScene->getState().bgm, gMusicVolume);
@@ -710,7 +702,6 @@ void update()
         }
 
         // Sync scene inventory back to global during exploration/title
-        // Ensures chest loot reflects in pause menu and global inventory
         if (gGameStatus == EXPLORATION || gGameStatus == TITLE) {
             gInventory = st.inventory;
         }
@@ -723,7 +714,7 @@ void render()
     
     ClearBackground(BLACK);
 
-    // 1. EXPLORATION/PAUSED: Draw World + Party HUD with camera
+    // EXPLORATION/PAUSED: Draw World + Party HUD with camera
     if (gGameStatus == EXPLORATION || gGameStatus == PAUSED)
     {
         gShader.begin();
@@ -734,45 +725,44 @@ void render()
             Vector2 playerPos = gCurrentScene->getState().player->getPosition();
             gShader.setVector2("lightPosition", playerPos);
         }
-        // --- WORLD RENDERING ---
-        // We assume the current scene has a valid camera setup
+        //  WORLD RENDERING 
         BeginMode2D(gCurrentScene->getState().camera);
         gCurrentScene->render();
         EndMode2D();
 
         gShader.end();
 
-        // --- NEW HUD RENDERING: Angled Bars per character ---
+        //  HUD RENDERING
         int startY = 20;
         for (int i = 0; i < (int)gParty.size(); i++) {
             Combatant& m = gParty[i];
 
-            // 1. Icon (scaled)
+            // Icon
             DrawTextureEx(gPartyIcons[i], { 20.0f, (float)startY }, 0.0f, 0.45f, WHITE);
 
-            // 2. Percentages
+            // Percentages
             float hpPercent = (m.maxHp > 0) ? ((float)m.currentHp / (float)m.maxHp) : 0.0f;
             float spPercent = (m.maxSp > 0) ? ((float)m.currentSp / (float)m.maxSp) : 0.0f;
 
-            // Clamp for safety
+            // Clamp
             if (hpPercent < 0.0f) hpPercent = 0.0f; if (hpPercent > 1.0f) hpPercent = 1.0f;
             if (spPercent < 0.0f) spPercent = 0.0f; if (spPercent > 1.0f) spPercent = 1.0f;
 
-            // 3. Dynamic HP Color
+            // Dynamic HP Color
             Color hpColor = GREEN;
             if (hpPercent < 0.5f) hpColor = YELLOW;
             if (hpPercent < 0.2f) hpColor = RED;
 
-            // 4. Bars (slanted) - slightly smaller and more spaced
+            // 4 Bars
             int baseX = 85;
             // Background HP bar
             DrawSlantedRect(baseX, startY + 8, 140, 12, 10, Fade(BLACK, 0.5f));
             // HP bar
             DrawSlantedRect(baseX, startY + 8, (int)(140 * hpPercent), 12, 10, hpColor);
-            // SP bar (thinner, below HP)
+            // SP bar
             DrawSlantedRect(baseX + 5, startY + 26, (int)(110 * spPercent), 7, 10, SKYBLUE);
 
-            // 5. Text - larger, HP black with max, SP smaller white
+            // Text
             DrawText(m.name.c_str(), baseX, startY - 12, 22, WHITE);
             DrawText(TextFormat("%d / %d", m.currentHp, m.maxHp), baseX + 5, startY + 6, 14, BLACK);
             DrawText(TextFormat("SP %d / %d", m.currentSp, m.maxSp), baseX + 8, startY + 22, 12, WHITE);
@@ -780,7 +770,7 @@ void render()
             startY += 92;
         }
 
-        // --- DEBUG HUD: Player world position (top-right) ---
+        //  DEBUG HUD: Player world position
         if (gGameStatus == EXPLORATION && gCurrentScene->getState().player) {
             Vector2 p = gCurrentScene->getState().player->getPosition();
             const int fontSize = 18;
@@ -792,7 +782,7 @@ void render()
             DrawText(buf, x, y, fontSize, LIGHTGRAY);
         }
     }
-    // 2. STATIC SCENES: Menu, Combat, Game Over
+    // STATIC SCENES: Menu, Combat, Game Over
     else 
     {
         // These scenes handle their own screen-space positioning
@@ -802,10 +792,10 @@ void render()
     // PAUSED Overlay and Menu (rendered on top of scene)
     if (gGameStatus == PAUSED) 
     {
-        // 1. DARK OVERLAY
+        // DARK OVERLAY
         DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.9f));
 
-        // 2. MAIN MENU (Right-side alignment without shape)
+        // MAIN MENU (Right-side alignment without shape)
         if (gPauseState == P_MAIN) {
             const char* options[] = { "SKILL", "ITEM", "EQUIP", "PERSONA", "SYSTEM" };
             for (int i = 0; i < 5; i++) {
@@ -818,7 +808,7 @@ void render()
                 DrawText(options[i], x, y, 40, col);
             }
         }
-        // 4b. ITEM LIST (Inventory)
+        // ITEM LIST (Inventory)
         else if (gPauseState == P_ITEM_LIST) {
             DrawText("ITEMS", 50, 50, 40, WHITE);
             std::vector<ItemGroup> groups = BuildInventoryGroups();
@@ -836,7 +826,7 @@ void render()
             DrawText("[Z] Use  [ESC] Back", 50, 550, 20, GRAY);
         }
 
-        // 5b. ITEM TARGETING (Apply)
+        // ITEM TARGETING (Apply)
         else if (gPauseState == P_ITEM_TARGET_ALLY) {
             DrawText("SELECT TARGET", 50, 50, 30, YELLOW);
             for (int i = 0; i < (int)gParty.size(); i++) {
@@ -853,7 +843,7 @@ void render()
             }
         }
 
-        // 3. PARTY SELECTION (Used for SKILL & EQUIP entry)
+        // PARTY SELECTION (Used for SKILL & EQUIP entry)
         else if (gPauseState == P_PARTY_SELECT) {
             DrawText("SELECT PARTY MEMBER", 50, 50, 30, WHITE);
             for (int i = 0; i < (int)gParty.size(); i++) {
@@ -868,7 +858,7 @@ void render()
             }
         }
 
-        // 4. SKILL LIST (Healing Only)
+        // SKILL LIST (Healing Only)
         else if (gPauseState == P_SKILL_LIST) {
             Combatant& c = gParty[gSelectedMemberIdx];
             std::vector<int> healIndices = GetHealingSkillIndices(c);
@@ -901,7 +891,7 @@ void render()
             DrawText("[Z] Use  [ESC] Back", 50, 550, 20, GRAY);
         }
 
-        // 5. SKILL TARGETING (Overlay on top of Party List)
+        // SKILL TARGETING (Overlay on top of Party List)
         else if (gPauseState == P_SKILL_TARGET_ALLY) {
             DrawText("SELECT TARGET", 50, 50, 30, GREEN);
             for (int i = 0; i < (int)gParty.size(); i++) {
@@ -917,7 +907,7 @@ void render()
             }
         }
 
-        // 6. SYSTEM MENU
+        // SYSTEM MENU
         else if (gPauseState == P_SYSTEM) {
             DrawText("SYSTEM", 50, 50, 40, WHITE);
             const char* sysOps[] = { "Audio Settings", "Quit to Title" };
@@ -929,7 +919,7 @@ void render()
             }
         }
 
-        // 7. AUDIO SETTINGS
+        // AUDIO SETTINGS
         else if (gPauseState == P_AUDIO_SETTINGS) {
             DrawText("AUDIO SETTINGS", 50, 50, 40, WHITE);
             DrawText("[UP/DOWN] Select   [LEFT/RIGHT] Adjust", 50, 100, 20, GRAY);
@@ -950,7 +940,7 @@ void render()
             DrawText("[ESC] Back", 50, 550, 20, GRAY);
         }
 
-        // 8. PERSONA MENU
+        // PERSONA MENU
         else if (gPauseState == P_PERSONA) {
             DrawText("JOKER'S PERSONAS", 50, 50, 40, WHITE);
             DrawText("Active stats applied to Joker.", 50, 90, 20, GRAY);
@@ -1007,7 +997,7 @@ void render()
             DrawText("[Z] Equip  [ESC] Back", 50, 550, 20, GRAY);
         }
 
-        // 9. EQUIP VIEW (Select Slot)
+        // EQUIP VIEW (Select Slot)
         else if (gPauseState == P_EQUIP_VIEW) {
             Combatant& c = gParty[gSelectedMemberIdx];
             DrawText(TextFormat("EQUIP: %s", c.name.c_str()), 50, 50, 40, WHITE);
@@ -1036,7 +1026,7 @@ void render()
             DrawText("[Z] Change  [ESC] Back", 50, 550, 20, GRAY);
         }
 
-        // 10. EQUIP LIST (Comparisons)
+        // EQUIP LIST (Comparisons)
         else if (gPauseState == P_EQUIP_LIST) {
             Combatant& c = gParty[gSelectedMemberIdx];
             EquipmentType targetType = (gSelectedEquipSlot == 0) ? EQUIP_MELEE : 
@@ -1067,7 +1057,7 @@ void render()
                     // Name
                     DrawText(item.name.c_str(), 60, y, 30, isSel ? BLACK : GRAY);
                     
-                    // --- STAT COMPARISON LOGIC ---
+                    // STAT COMPARISON LOGIC
                     int statX = 400;
                     
                     // Compare Attack (Melee/Gun)
@@ -1111,7 +1101,7 @@ void render()
         }
     }
 
-    // GLOBAL FADE OVERLAY (applies during transitions between levels/combat)
+    // GLOBAL FADE OVERLAY
     if (gTransitionPhase != T_NONE) {
         DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, gTransitionAlpha));
     }
@@ -1217,15 +1207,5 @@ int main()
 
         render();
     }
-
-    // Ensure SFX are unloaded before closing (if not already)
-    if (gSndBack.frameCount) UnloadSound(gSndBack);
-    if (gSndCrit.frameCount) UnloadSound(gSndCrit);
-    if (gSndGun.frameCount)  UnloadSound(gSndGun);
-    if (gSndHeal.frameCount) UnloadSound(gSndHeal);
-    if (gSndHit.frameCount)  UnloadSound(gSndHit);
-    if (gSndMenu.frameCount) UnloadSound(gSndMenu);
-    CloseAudioDevice();
-    CloseWindow();
-    return 0;
+    shutdown();
 }

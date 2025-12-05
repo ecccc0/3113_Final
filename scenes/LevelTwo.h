@@ -1,7 +1,5 @@
 #include "../lib/Scene.h"
 #include "../lib/Map.h"
-
-// Forward declare Effects to avoid circular dependency
 class Effects;
 
 #ifndef LEVEL_TWO_H
@@ -10,7 +8,6 @@ class Effects;
 class LevelTwo : public Scene
 {
 public:
-    // We pass origin and hex color to the base Scene constructor
     LevelTwo(Vector2 origin, const char* hexColor) : Scene(origin, hexColor) {}
 
     void initialise() override;
@@ -18,15 +15,15 @@ public:
     void render() override;
     void shutdown() override;
 private:
-    // Level-specific enemy defeat flags cached locally for convenience
+    // Level-specific enemy defeat flags
     std::vector<bool> mEnemyDefeated;
-    // Party follower entities (Skull, Mona, Noir)
+    // Party follower entities
     std::vector<Entity*> mFollowers;
-    // Props (array for collision checks)
+    // Props
     Entity* mWorldProps = nullptr;
     int     mPropCount  = 0;
 
-    // --- TRANSITION EFFECTS ---
+    // TRANSITION EFFECTS 
     Effects* mEffects = nullptr;
     bool mIsTransitioning = false;
     float mTargetZoom = 3.0f; // How far to zoom in before switching
