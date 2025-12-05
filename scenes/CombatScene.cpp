@@ -771,7 +771,22 @@ void CombatScene::initialise() {
                 if (chosen.damage < 0) {
                     DrawText(TextFormat("Action: %s (Heals %d HP, %d %s)", chosen.name.c_str(), -chosen.damage, chosen.cost, costType), 20, 535, 18, SKYBLUE);
                 } else {
-                    DrawText(TextFormat("Action: %s (Dmg %d, %d %s)", chosen.name.c_str(), chosen.damage, chosen.cost, costType), 20, 535, 18, YELLOW);
+                    // Show elemental type for non-healing skills
+                    const char* elemName = "Neutral";
+                    switch (chosen.element) {
+                        case PHYS: elemName = "Phys"; break;
+                        case GUN: elemName = "Gun"; break;
+                        case FIRE: elemName = "Fire"; break;
+                        case ICE: elemName = "Ice"; break;
+                        case ELEC: elemName = "Elec"; break;
+                        case WIND: elemName = "Wind"; break;
+                        case PSI: elemName = "Psi"; break;
+                        case NUKE: elemName = "Nuke"; break;
+                        case BLESS: elemName = "Bless"; break;
+                        case CURSE: elemName = "Curse"; break;
+                        default: elemName = "Neutral"; break;
+                    }
+                    DrawText(TextFormat("Action: %s (%s, Dmg %d, %d %s)", chosen.name.c_str(), elemName, chosen.damage, chosen.cost, costType), 20, 535, 18, YELLOW);
                 }
             }
 
@@ -794,7 +809,21 @@ void CombatScene::initialise() {
             if (chosen.damage < 0) {
                 DrawText(TextFormat("Action: %s (Heals %d HP, %d %s)", chosen.name.c_str(), -chosen.damage, chosen.cost, costType), 20, 535, 18, SKYBLUE);
             } else {
-                DrawText(TextFormat("Action: %s (Dmg %d, %d %s)", chosen.name.c_str(), chosen.damage, chosen.cost, costType), 20, 535, 18, YELLOW);
+                const char* elemName = "Neutral";
+                switch (chosen.element) {
+                    case PHYS: elemName = "Phys"; break;
+                    case GUN: elemName = "Gun"; break;
+                    case FIRE: elemName = "Fire"; break;
+                    case ICE: elemName = "Ice"; break;
+                    case ELEC: elemName = "Elec"; break;
+                    case WIND: elemName = "Wind"; break;
+                    case PSI: elemName = "Psi"; break;
+                    case NUKE: elemName = "Nuke"; break;
+                    case BLESS: elemName = "Bless"; break;
+                    case CURSE: elemName = "Curse"; break;
+                    default: elemName = "Neutral"; break;
+                }
+                DrawText(TextFormat("Action: %s (%s, Dmg %d, %d %s)", chosen.name.c_str(), elemName, chosen.damage, chosen.cost, costType), 20, 535, 18, YELLOW);
             }
             // Hints in top-right
             DrawRectangle(640, 10, 340, 60, Fade(DARKGRAY, 0.85f));
