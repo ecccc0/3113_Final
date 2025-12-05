@@ -25,6 +25,9 @@ std::vector<Item> gInventory;  // Player inventory
 std::vector<Equipment> gOwnedEquipment; // The "Bag" of unequipped items
 int gSelectedEquipSlot = 0; // 0=Melee, 1=Gun, 2=Armor
 
+// --- HUD ICONS ---
+Texture2D gPartyIcons[4]; // Joker, Skull, Mona, Noir
+
 // --- PERSONA GLOBALS ---
 std::vector<Persona> gOwnedPersonas;
 int gEquippedPersonaIdx = 0; // Index in gOwnedPersonas
@@ -88,6 +91,16 @@ float gSFXVolume    = 0.8f;
 // Aliases requested: lowercase variants used in settings
 float gmusicvolume  = 0.8f;
 float gsfxvolume    = 0.8f;
+
+// Helper: Draw a slanted/parallelogram rectangle (Persona-style)
+void DrawSlantedRect(int x, int y, int width, int height, int skew, Color color) {
+    Vector2 v1 = { (float)x + (float)skew, (float)y };
+    Vector2 v2 = { (float)x, (float)y + (float)height };
+    Vector2 v3 = { (float)x + (float)width, (float)y + (float)height };
+    Vector2 v4 = { (float)x + (float)width + (float)skew, (float)y };
+    DrawTriangle(v1, v2, v3, color);
+    DrawTriangle(v1, v3, v4, color);
+}
 
 // Helper to reset menu state when opening
 void OpenPauseMenu() {
@@ -161,6 +174,12 @@ void initialise()
     InitAudioDevice();
 
     gShader.load("shaders/vertex.glsl", "shaders/fragment.glsl");
+
+    // Load HUD icons (Task 0 prerequisite)
+    gPartyIcons[0] = LoadTexture("assets/icon_joker.png");
+    gPartyIcons[1] = LoadTexture("assets/icon_skull.png");
+    gPartyIcons[2] = LoadTexture("assets/icon_mona.png");
+    gPartyIcons[3] = LoadTexture("assets/icon_noir.png");
 
     // Reset global enemy defeat tracking at app start (new session)
     gSceneEnemyDefeated.clear();
@@ -506,36 +525,43 @@ void render()
 
         gShader.end();
 
-        // --- HUD RENDERING (Fixed on screen) ---
-        // Draw a semi-transparent box behind the stats for readability
-        DrawRectangle(10, 10, 220, 150 + (gParty.size() * 40), Fade(BLACK, 0.6f));
-        DrawRectangleLines(10, 10, 220, 150 + (gParty.size() * 40), WHITE);
+        // --- NEW HUD RENDERING: Angled Bars per character ---
+        int startY = 20;
+        for (int i = 0; i < (int)gParty.size(); i++) {
+            Combatant& m = gParty[i];
 
-        DrawText("PHANTOM THIEVES", 30, 20, 20, WHITE);
+            // 1. Icon (scaled)
+            DrawTextureEx(gPartyIcons[i], { 20.0f, (float)startY }, 0.0f, 0.45f, WHITE);
 
-        int yPos = 50;
-        for (const auto& member : gParty)
-        {
-            Color nameColor = LIGHTGRAY; // Default (Joker)
-            if (member.name == "Skull") nameColor = YELLOW;
-            else if (member.name == "Mona") nameColor = SKYBLUE;
-            else if (member.name == "Noir") nameColor = VIOLET;
+            // 2. Percentages
+            float hpPercent = (m.maxHp > 0) ? ((float)m.currentHp / (float)m.maxHp) : 0.0f;
+            float spPercent = (m.maxSp > 0) ? ((float)m.currentSp / (float)m.maxSp) : 0.0f;
 
-            // 1. Name
-            DrawText(member.name.c_str(), 20, yPos, 20, nameColor);
+            // Clamp for safety
+            if (hpPercent < 0.0f) hpPercent = 0.0f; if (hpPercent > 1.0f) hpPercent = 1.0f;
+            if (spPercent < 0.0f) spPercent = 0.0f; if (spPercent > 1.0f) spPercent = 1.0f;
 
-            // 2. HP (Green)
-            std::string hpStr = "HP: " + std::to_string(member.currentHp);
-            DrawText(hpStr.c_str(), 100, yPos, 20, GREEN);
+            // 3. Dynamic HP Color
+            Color hpColor = GREEN;
+            if (hpPercent < 0.5f) hpColor = YELLOW;
+            if (hpPercent < 0.2f) hpColor = RED;
 
-            // 3. SP (Blue/Cyan)
-            std::string spStr = "SP: " + std::to_string(member.currentSp);
-            DrawText(spStr.c_str(), 170, yPos, 20, SKYBLUE);
+            // 4. Bars (slanted) - slightly smaller and more spaced
+            int baseX = 85;
+            // Background HP bar
+            DrawSlantedRect(baseX, startY + 8, 140, 12, 10, Fade(BLACK, 0.5f));
+            // HP bar
+            DrawSlantedRect(baseX, startY + 8, (int)(140 * hpPercent), 12, 10, hpColor);
+            // SP bar (thinner, below HP)
+            DrawSlantedRect(baseX + 5, startY + 26, (int)(110 * spPercent), 7, 10, SKYBLUE);
 
-            yPos += 30; // Spacing for next member
+            // 5. Text - larger, HP black with max, SP smaller white
+            DrawText(m.name.c_str(), baseX, startY - 12, 22, WHITE);
+            DrawText(TextFormat("%d / %d", m.currentHp, m.maxHp), baseX + 5, startY + 6, 14, BLACK);
+            DrawText(TextFormat("SP %d / %d", m.currentSp, m.maxSp), baseX + 8, startY + 22, 12, WHITE);
+
+            startY += 92;
         }
-
-        // (Removed debug HUD for enemies)
     }
     // 2. STATIC SCENES: Menu, Combat, Game Over
     else 
@@ -595,11 +621,18 @@ void render()
                     Ability& s = c.skills[realIdx];
                     int y = 150 + (i * 60);
                     bool isSel = (i == gSubMenuSelection);
-                    Color col = isSel ? WHITE : LIGHTGRAY;
-                    if (isSel) DrawText(">", 60, y, 30, RED);
-                    DrawText(s.name.c_str(), 100, y, 30, col);
-                    DrawText(TextFormat("%d SP", s.cost), 300, y+5, 20, SKYBLUE);
-                    DrawText(TextFormat("Heals %d", -s.damage), 400, y+5, 20, GREEN);
+
+                    if (isSel) {
+                        // Selection strip background
+                        DrawRectangle(0, y - 5, 500, 40, WHITE);
+                        DrawText(s.name.c_str(), 100, y, 30, BLACK);
+                        DrawText(TextFormat("%d SP", s.cost), 300, y+5, 20, BLACK);
+                        DrawText(TextFormat("Heals %d", -s.damage), 400, y+5, 20, BLACK);
+                    } else {
+                        DrawText(s.name.c_str(), 100, y, 30, GRAY);
+                        DrawText(TextFormat("%d SP", s.cost), 300, y+5, 20, SKYBLUE);
+                        DrawText(TextFormat("Heals %d", -s.damage), 400, y+5, 20, GREEN);
+                    }
                 }
             }
             DrawText("[Z] Use  [ESC] Back", 50, 550, 20, GRAY);
@@ -762,11 +795,14 @@ void render()
                     
                     int y = 150 + (i * 80);
                     bool isSel = (i == gSubMenuSelection);
-
-                    if (isSel) DrawText(">", 30, y, 30, RED);
+                    
+                    if (isSel) {
+                        // Selection strip background to highlight
+                        DrawRectangle(0, y - 8, 700, 50, WHITE);
+                    }
                     
                     // Name
-                    DrawText(item.name.c_str(), 60, y, 30, isSel ? WHITE : GRAY);
+                    DrawText(item.name.c_str(), 60, y, 30, isSel ? BLACK : GRAY);
                     
                     // --- STAT COMPARISON LOGIC ---
                     int statX = 400;
@@ -818,6 +854,13 @@ void render()
 void Shutdown() 
 {
     gShader.unload();
+    // Unload HUD icons
+    for (int i = 0; i < 4; ++i) {
+        if (gPartyIcons[i].id != 0) {
+            UnloadTexture(gPartyIcons[i]);
+            gPartyIcons[i] = Texture2D{};
+        }
+    }
     CloseAudioDevice();
     CloseWindow();
 }

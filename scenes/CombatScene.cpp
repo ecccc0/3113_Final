@@ -3,7 +3,20 @@
 #include <cmath>
 #include "raymath.h"
 
+// Access exploration HUD icons
+extern Texture2D gPartyIcons[4];
+
 // CombatScene should use its own GameState.party rather than the global gParty
+
+// Local helper to draw a slanted rectangle (parallelogram) for HUD bars
+static void DrawSlantedRect(int x, int y, int width, int height, int skew, Color color) {
+    Vector2 v1 = { (float)x + (float)skew, (float)y };
+    Vector2 v2 = { (float)x, (float)y + (float)height };
+    Vector2 v3 = { (float)x + (float)width, (float)y + (float)height };
+    Vector2 v4 = { (float)x + (float)width + (float)skew, (float)y };
+    DrawTriangle(v1, v2, v3, color);
+    DrawTriangle(v1, v3, v4, color);
+}
 
 void CombatScene::initialise() {
     // Set initial turn state based on advantage
@@ -66,7 +79,23 @@ void CombatScene::initialise() {
             member.hasActed = false;
         }
 
-        // copy inventory from global to local state
+        // Build party visual sprites (simple atlas-based entities)
+        // Clean previous
+        for (Entity* e : mPartySprites) { delete e; }
+        mPartySprites.clear();
+        for (int i = 0; i < (int)mGameState.party.size(); i++) {
+            Entity* sprite = new Entity();
+            sprite->setEntityType(NPC);
+            // Use characters atlas like LevelOne
+            sprite->setTexture("assets/characters.png");
+            sprite->setTextureType(ATLAS);
+            sprite->setSpriteSheetDimensions({5,4});
+            sprite->setScale({32.0f, 32.0f});
+            sprite->setColliderDimensions({ 28.0f, 28.0f });
+            sprite->setTint(mGameState.party[i].tint);
+            // Position will be set during render for simplicity
+            mPartySprites.push_back(sprite);
+        }
 
         // --- INITIALISE EFFECTS ---
         if (mEffects) delete mEffects;
@@ -95,6 +124,8 @@ void CombatScene::initialise() {
         UnloadTexture(mIconItem);
         UnloadTexture(mUiCursor);
         if (mEffects) { delete mEffects; mEffects = nullptr; }
+        for (Entity* e : mPartySprites) { delete e; }
+        mPartySprites.clear();
     }
 
     void CombatScene::NextTurn() {
@@ -471,10 +502,42 @@ void CombatScene::initialise() {
     void CombatScene::render() {
         ClearBackground(BLACK);
 
+            // 1. Draw Party Sprites (Visuals) - left of center, vertical lineup
+            for (int i = 0; i < (int)mPartySprites.size(); i++) {
+                float spriteX = 340.0f;            // fixed x left of center
+                float spriteY = 150.0f + (i * 90.0f); // vertical stack
+
+                Texture2D tex = mPartySprites[i]->getTexture();
+                // Use atlas frame #15 in a 4x5 sheet (matches your asset)
+                const int cols = 4;
+                const int rows = 5;
+                const int frameIndex = 15;
+                float frameW = (float)tex.width / (float)cols;
+                float frameH = (float)tex.height / (float)rows;
+                int col = frameIndex % cols;
+                int row = frameIndex / cols;
+                Rectangle src = { col * frameW, row * frameH, frameW, frameH };
+
+                // Force name-based tint to ensure color shows clearly
+                Color tint = WHITE;
+                if (mGameState.party[i].name == "Skull") tint = YELLOW;
+                else if (mGameState.party[i].name == "Mona") tint = SKYBLUE;
+                else if (mGameState.party[i].name == "Noir") tint = VIOLET;
+
+                DrawTexturePro(
+                    tex,
+                    src,
+                    { spriteX, spriteY, 48, 48 },
+                    { 24, 24 },
+                    0.0f,
+                    tint
+                );
+            }
+
         for (int i = 0; i < mGameState.party.size(); i++) {
             Combatant& member = mGameState.party[i];
-            float x = 50;
-            float y = 50 + (i * 100);
+            float x = 20; 
+            float y = 100 + (i * 90);
 
             Color c = LIGHTGRAY;
             if (member.name == "Skull") c = YELLOW;
@@ -493,10 +556,40 @@ void CombatScene::initialise() {
                 DrawText("HEAL", x+220, y+20, 20, SKYBLUE);
             }
 
-            DrawRectangle(x, y, 60, 60, c);
-            DrawText(member.name.c_str(), x+70, y, 20, c);
-            DrawText(TextFormat("HP: %d", member.currentHp), x+70, y+25, 20, WHITE);
-            DrawText(TextFormat("SP: %d", member.currentSp), x+70, y+50, 20, SKYBLUE);
+            // Icon placeholder and HUD block near left edge
+            // Use character icon textures for HUD
+            int iconIndex = i % 4;
+            Color tint = mGameState.party[i].tint;
+            if (tint.a == 0) {
+                if (member.name == "Skull") tint = YELLOW;
+                else if (member.name == "Mona") tint = SKYBLUE;
+                else if (member.name == "Noir") tint = VIOLET;
+                else tint = WHITE;
+            }
+            DrawTextureEx(gPartyIcons[iconIndex], { x, y }, 0.0f, 0.4f, tint);
+            DrawText(member.name.c_str(), x + 60, y - 10, 22, WHITE);
+
+            // Slanted HP/SP bars (reuse Task 1 style)
+            float hpPercent = (member.maxHp > 0) ? ((float)member.currentHp / (float)member.maxHp) : 0.0f;
+            float spPercent = (member.maxSp > 0) ? ((float)member.currentSp / (float)member.maxSp) : 0.0f;
+            if (hpPercent < 0) hpPercent = 0; if (hpPercent > 1) hpPercent = 1;
+            if (spPercent < 0) spPercent = 0; if (spPercent > 1) spPercent = 1;
+
+            Color hpColor = GREEN;
+            if (hpPercent < 0.5f) hpColor = YELLOW;
+            if (hpPercent < 0.2f) hpColor = RED;
+
+            int barX = (int)(x + 60);
+            // Background HP
+            DrawSlantedRect(barX, (int)y + 8, 150, 14, -10, Fade(BLACK, 0.5f));
+            // HP foreground
+            DrawSlantedRect(barX, (int)y + 8, (int)(150 * hpPercent), 14, -10, hpColor);
+            // SP bar
+            DrawSlantedRect(barX + 5, (int)y + 28, (int)(120 * spPercent), 8, -10, SKYBLUE);
+
+            // Text overlays
+            DrawText(TextFormat("%d / %d", member.currentHp, member.maxHp), barX + 4, (int)y + 6, 14, BLACK);
+            DrawText(TextFormat("SP %d / %d", member.currentSp, member.maxSp), barX + 8, (int)y + 24, 12, WHITE);
         }
 
         for (int i = 0; i < mGameState.battleEnemies.size(); i++) {
@@ -626,7 +719,8 @@ void CombatScene::initialise() {
 
         // --- RENDER COMBAT UI: Command Wheel ---
         if (mState == PLAYER_TURN_MAIN) {
-            Vector2 center = { 100.0f, 500.0f };
+            // Shift command wheel slightly right to avoid HUD overlap
+            Vector2 center = { 150.0f, 500.0f };
             float radius = 80.0f;
             DrawCircleV(center, radius + 10, Fade(RED, 0.5f));
 

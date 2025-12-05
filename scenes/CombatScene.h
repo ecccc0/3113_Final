@@ -3,6 +3,7 @@
 
 #include "../lib/Scene.h"
 #include "../lib/GameTypes.h"
+#include "../lib/Entity.h"
 #include <vector>
 #include <string>
 
@@ -63,6 +64,9 @@ private:
     // --- TRANSITION EFFECTS ---
     Effects* mEffects = nullptr;
     float mTargetZoom = 1.0f; // Normal Zoom
+
+    // --- PARTY VISUAL SPRITES ---
+    std::vector<Entity*> mPartySprites;
 };
 
 #endif
