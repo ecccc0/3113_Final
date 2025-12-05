@@ -58,18 +58,33 @@ void LevelOne::initialise()
     }
     mGameState.map = new Map(20, 20, LEVEL_1_DATA, "assets/tileset.png", 32.0f, 4, 1, mOrigin);
 
-    // 2. CREATE PLAYER (preserve if already exists?) For prototype recreate.
+    // 1b. DEFINE WALKING ANIMATION ATLAS (5 cols x 4 rows)
+    std::map<Direction, std::vector<int>> walkingAnimation = {
+        // Row layout with 5 columns per row:
+        // Row 0: 0..4, Row 1: 5..9, Row 2: 10..14, Row 3: 15..19
+        { DOWN,  { 0, 1, 2, 3 } },
+        { RIGHT, { 10, 11, 12, 13 } },
+        { LEFT,  { 10, 11, 12, 13 } },
+        { UP,    { 15, 16, 17, 18 } }
+    };
+
+    // 2. CREATE PLAYER (JOKER) using default ctor, then configure atlas
     if (mGameState.player) {
         delete mGameState.player;
         mGameState.player = nullptr;
     }
-    mGameState.player = new Entity(
-        { 500.0f, 250.0f },
-        { 32.0f, 32.0f },
-        "assets/player_joker.png",
-        PLAYER
-    );
+    mGameState.player = new Entity();
+    mGameState.player->setEntityType(PLAYER);
+    mGameState.player->setPosition({ 500.0f, 250.0f });
+    mGameState.player->setScale({ 32.0f, 32.0f });
+    mGameState.player->setColliderDimensions({ 28.0f, 28.0f });
+    mGameState.player->setTexture("assets/characters.png");
+    mGameState.player->setTextureType(ATLAS);
+    mGameState.player->setSpriteSheetDimensions({ 5, 4 });
+    mGameState.player->setAnimationAtlas(walkingAnimation);
+    mGameState.player->setFrameSpeed(Entity::DEFAULT_FRAME_SPEED);
     mGameState.player->setAcceleration({ 0.0f, 0.0f });
+    mGameState.player->setTint(WHITE);
 
     // If coming back from combat, restore player position before spawning followers
     if (mGameState.hasReturnSpawnPos) {
@@ -77,13 +92,46 @@ void LevelOne::initialise()
         mGameState.hasReturnSpawnPos = false; // consume so we don't reuse it on next initialise
     }
 
-    // 2b. CREATE PARTY FOLLOWERS (Skull, Mona, Noir)
+    // 2b. CREATE PARTY FOLLOWERS (Skull, Mona, Noir) using atlas + tints
     // Spawn behind player with slight offsets
     Vector2 playerPos = mGameState.player->getPosition();
     const float spacing = 40.0f;
-    Entity* skull = new Entity({ playerPos.x - spacing, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_skull.png", NPC);
-    Entity* mona  = new Entity({ playerPos.x - spacing * 2.0f, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_mona.png", NPC);
-    Entity* noir  = new Entity({ playerPos.x - spacing * 3.0f, playerPos.y + spacing }, { 32.0f, 32.0f }, "assets/player_noir.png", NPC);
+    Entity* skull = new Entity();
+    skull->setEntityType(NPC);
+    skull->setPosition({ playerPos.x - spacing, playerPos.y + spacing });
+    skull->setScale({ 32.0f, 32.0f });
+    skull->setColliderDimensions({ 28.0f, 28.0f });
+    skull->setTexture("assets/characters.png");
+    skull->setTextureType(ATLAS);
+    skull->setSpriteSheetDimensions({ 5, 4 });
+    skull->setAnimationAtlas(walkingAnimation);
+    skull->setFrameSpeed(Entity::DEFAULT_FRAME_SPEED);
+
+    Entity* mona = new Entity();
+    mona->setEntityType(NPC);
+    mona->setPosition({ playerPos.x - spacing * 2.0f, playerPos.y + spacing });
+    mona->setScale({ 32.0f, 32.0f });
+    mona->setColliderDimensions({ 28.0f, 28.0f });
+    mona->setTexture("assets/characters.png");
+    mona->setTextureType(ATLAS);
+    mona->setSpriteSheetDimensions({ 5, 4 });
+    mona->setAnimationAtlas(walkingAnimation);
+    mona->setFrameSpeed(Entity::DEFAULT_FRAME_SPEED);
+
+    Entity* noir = new Entity();
+    noir->setEntityType(NPC);
+    noir->setPosition({ playerPos.x - spacing * 3.0f, playerPos.y + spacing });
+    noir->setScale({ 32.0f, 32.0f });
+    noir->setColliderDimensions({ 28.0f, 28.0f });
+    noir->setTexture("assets/characters.png");
+    noir->setTextureType(ATLAS);
+    noir->setSpriteSheetDimensions({ 5, 4 });
+    noir->setAnimationAtlas(walkingAnimation);
+    noir->setFrameSpeed(Entity::DEFAULT_FRAME_SPEED);
+
+    skull->setTint(YELLOW);
+    mona->setTint(SKYBLUE);
+    noir->setTint(VIOLET);
 
     skull->setAIType(AI_SENTRY); skull->setAIState(IDLE); skull->activate(); skull->setAcceleration({0.0f,0.0f});
     mona->setAIType(AI_SENTRY);  mona->setAIState(IDLE);  mona->activate();  mona->setAcceleration({0.0f,0.0f});

@@ -9,7 +9,7 @@ Entity::Entity() : mPosition {0.0f, 0.0f}, mMovement {0.0f, 0.0f},
                    mColliderDimensions {DEFAULT_SIZE, DEFAULT_SIZE}, 
                    mTexture {}, mTextureType {SINGLE}, mAngle {0.0f},
                    mSpriteSheetDimensions {}, mDirection {RIGHT}, 
-                   mAnimationAtlas {{}}, mAnimationIndices {}, mFrameSpeed {0},
+                   mAnimationAtlas {{}}, mAnimationIndices {}, mFrameSpeed {DEFAULT_FRAME_SPEED},
                    mSpeed { DEFAULT_SPEED },
                    mEntityType {NONE} { }
 
@@ -431,14 +431,25 @@ void Entity::render()
             };
             break;
         case ATLAS:
+        {
+            int index = 0;
+            if (Vector2Length(mMovement) > 0.0f && !mAnimationIndices.empty()) {
+                index = mAnimationIndices[mCurrentFrameIndex];
+            } // else stay at atlas (0,0) -> index 0 when idle
             textureArea = getUVRectangle(
-                &mTexture, 
-                mAnimationIndices[mCurrentFrameIndex], 
-                mSpriteSheetDimensions.x, 
+                &mTexture,
+                index,
+                mSpriteSheetDimensions.x,
                 mSpriteSheetDimensions.y
             );
-        
+        }
+            break;
         default: break;
+    }
+
+    // Flip horizontally when facing LEFT by negating source width
+    if (mDirection == LEFT) {
+        textureArea.width *= -1.0f;
     }
 
     Rectangle destinationArea = {
@@ -456,7 +467,7 @@ void Entity::render()
     DrawTexturePro(
         mTexture, 
         textureArea, destinationArea, originOffset,
-        mAngle, WHITE
+        mAngle, mTint
     );
 }
 
@@ -485,6 +496,7 @@ Vector2 Entity::getDirectionVector() const
         case RIGHT: return {  1.0f,  0.0f };
         case UP:    return {  0.0f, -1.0f };
         case DOWN:  return {  0.0f,  1.0f };
+        case NEUTRAL: return {  0.0f,  1.0f }; // Treat neutral as DOWN for cone math
         default:    return {  0.0f,  1.0f }; // Default DOWN
     }
 }
@@ -554,6 +566,8 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
     if (mEntityType != NPC || mAIType != AI_SENTRY || leader == nullptr) return;
 
     Vector2 currentPos = mPosition;
+    const float IDLE_SPEED_THRESHOLD = 12.0f;   // px/s considered idle
+    const float STOP_FOLLOW_DISTANCE = 80.0f;   // within this, stop physics
 
     // Early-out rescue: if follower is far from leader, teleport near leader safely
     const float TELEPORT_DISTANCE = 300.0f; // significant separation
@@ -591,6 +605,21 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         mPositionHistory.push_front(mPosition);
 
         // No further physics this frame
+        return;
+    }
+
+    // Early-out settle: if very close to leader, stop physics and idle
+    float distToLeader = Vector2Distance(currentPos, leader->getPosition());
+    if (distToLeader < STOP_FOLLOW_DISTANCE)
+    {
+        mVelocity = {0.0f, 0.0f};
+        mMovement = {0.0f, 0.0f};
+        mIsCollidingLeft = mIsCollidingRight = mIsCollidingTop = mIsCollidingBottom = false;
+        mDirection = NEUTRAL;
+        // Keep breadcrumb minimal to avoid history spam
+        if (mPositionHistory.empty() || Vector2Distance(mPositionHistory.front(), mPosition) > 0.5f)
+            mPositionHistory.push_front(mPosition);
+        if (mPositionHistory.size() > 200) mPositionHistory.pop_back();
         return;
     }
 
@@ -669,8 +698,9 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         if (mPositionHistory.size() > 200) mPositionHistory.pop_back();
     }
 
-    // Derive movement vector for animation/direction (not used for speed calc now)
-    if (Vector2Length(mVelocity) > 0.0f) {
+    // Derive movement vector for animation/direction with idle threshold
+    float vmag = Vector2Length(mVelocity);
+    if (vmag > IDLE_SPEED_THRESHOLD) {
         mMovement = Vector2Normalize(mVelocity);
         if (fabs(mVelocity.x) > fabs(mVelocity.y)) {
             mDirection = (mVelocity.x < 0) ? LEFT : RIGHT;
@@ -679,10 +709,11 @@ void Entity::updateFollowerPhysics(Entity* leader, const std::vector<Entity*>& f
         }
     } else {
         mMovement = {0.0f, 0.0f};
+        mDirection = NEUTRAL;
     }
 
     // Animation (if atlas)
-    if (mTextureType == ATLAS && Vector2Length(mVelocity) > 1.0f) {
+    if (mTextureType == ATLAS && Vector2Length(mVelocity) > IDLE_SPEED_THRESHOLD) {
         animate(deltaTime);
     }
 }

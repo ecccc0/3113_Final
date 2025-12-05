@@ -4,7 +4,7 @@
 #include "Map.h"
 #include <deque> // Required for Breadcrumb/Follower system
 
-enum Direction    { LEFT, UP, RIGHT, DOWN              };
+enum Direction    { LEFT, UP, RIGHT, DOWN, NEUTRAL     };
 enum EntityStatus { ACTIVE, INACTIVE                   };
 enum EntityType   { PLAYER, BLOCK, PLATFORM, NPC, NONE };
 // Updated AI enums (Phase 1: Patrol/Chase/Return behaviors)
@@ -35,6 +35,7 @@ private:
     Texture2D mTexture;
     TextureType mTextureType;
     Vector2 mSpriteSheetDimensions;
+    Color mTint = WHITE;
     
     std::map<Direction, std::vector<int>> mAnimationAtlas;
     std::vector<int> mAnimationIndices;
@@ -162,8 +163,14 @@ public:
     void setAcceleration(Vector2 newAcceleration){ mAcceleration = newAcceleration;         }
     void setScale(Vector2 newScale)             { mScale = newScale;                       }
     void setTexture(const char *textureFilepath){ mTexture = LoadTexture(textureFilepath); }
+    void setTextureType(TextureType type)        { mTextureType = type;                      }
     void setColliderDimensions(Vector2 newDimensions) { mColliderDimensions = newDimensions; }
     void setSpriteSheetDimensions(Vector2 newDimensions) { mSpriteSheetDimensions = newDimensions; }
+    void setAnimationAtlas(const std::map<Direction, std::vector<int>>& atlas)
+    {
+        mAnimationAtlas = atlas;
+        if (mTextureType == ATLAS) mAnimationIndices = mAnimationAtlas.at(mDirection);
+    }
     void setSpeed(int newSpeed)                 { mSpeed  = newSpeed;                      }
     void setFrameSpeed(int newSpeed)            { mFrameSpeed = newSpeed;                  }
     void setAngle(float newAngle)               { mAngle = newAngle;                       }
@@ -173,6 +180,7 @@ public:
         mDirection = newDirection;
         if (mTextureType == ATLAS) mAnimationIndices = mAnimationAtlas.at(mDirection);
     }
+    void setTint(Color color)                   { mTint = color;                           }
     void setAIState(AIState newState)           { mAIState = newState;                     }
     void setAIType(AIType newType)              { mAIType = newType;                       }
     void setStartPosition(Vector2 pos)          { mStartPosition = pos;                    }
